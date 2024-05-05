@@ -1,7 +1,8 @@
-from orpheusplus.mysql_manager import MySQLManager
 import mysql.connector
 import pytest
+
 from orpheusplus.exceptions import MySQLConnectionError
+from orpheusplus.mysql_manager import MySQLManager
 
 
 def test_mysql_connection_error():

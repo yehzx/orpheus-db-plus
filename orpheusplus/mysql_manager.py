@@ -1,13 +1,15 @@
 import mysql.connector
+
+from orpheusplus import ORPHEUSPLUS_CONFIG
 from orpheusplus.exceptions import MySQLConnectionError
 
+
 class MySQLManager():
-    def __init__(self, user, passwd, host, database=None, port=None):
-        self.cnx_args = {"user": user, "passwd": passwd, "host": host}
-        if database is not None:
-            self.cnx_args["database"] = database
-        if port is not None:
-            self.cnx_args["port"] = port
+    def __init__(self, user, passwd, host=None, database=None, port=None):
+        self.cnx_args = {"user": user, "passwd": passwd}
+        self.cnx_args["database"] = database if database is not None else None
+        self.cnx_args["host"] = host if host is not None else ORPHEUSPLUS_CONFIG["host"]
+        self.cnx_args["port"] = int(port) if port is not None else ORPHEUSPLUS_CONFIG["port"]
         self.connect_to_mysql()
  
     def connect_to_mysql(self, args=None):

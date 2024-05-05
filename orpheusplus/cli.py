@@ -8,11 +8,12 @@ import mysql.connector
 from orpheusplus import ORPHEUSPLUS_CONFIG, ORPHEUSPLUS_ROOT_DIR
 from orpheusplus.exceptions import MySQLConnectionError
 from orpheusplus.mysql_manager import MySQLManager
+from orpheusplus.user_manager import UserManager
 
 
 def main():
     args = parse_args(sys.argv[1:])
-    args.func()
+    args.func(args)
     pass
 
 
@@ -44,23 +45,16 @@ def default_handler():
     print("Use -h or --help for more information.")
 
 
-def dbconfig():
+def dbconfig(args):
     print()
     db_name = input("Enter database name: ")
     db_user = input("Enter user name: ")
     user_passwd = maskpass.askpass(prompt="Enter user password: ")
 
-    # Save to .meta/user
-    with open(ORPHEUSPLUS_ROOT_DIR / ".meta/user", "w") as f:
-        json.dump({"db_name": db_name, "user": db_user,
-                   "passwd": user_passwd}, f)
-
+    UserManager.save_user(database=db_name, user=db_user, passwd=user_passwd)
+    user = UserManager()
     try:
-        mydb = MySQLManager(host=ORPHEUSPLUS_CONFIG["host"],
-                            port=ORPHEUSPLUS_CONFIG["port"],
-                            user=db_user,
-                            passwd=user_passwd,
-                            database=db_name)
+        mydb = MySQLManager(**user.info)
         print("Connection successed.")
         print(f"User: {db_user}, Database: {db_name}")
     except MySQLConnectionError as e:
@@ -72,8 +66,11 @@ def dbconfig():
 
 
 def init_table(args):
+    user = UserManager()
+    mydb = MySQLManager(**user.info)
     table_name = args.table
-    pass
+    table_structure = args.structure
+
 
 if __name__ == "__main__":
     main()
