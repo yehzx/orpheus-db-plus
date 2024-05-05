@@ -2,6 +2,8 @@ from pathlib import Path
 
 import yaml
 
+__all__ = ["ORPHEUSPLUS_ROOT_DIR", "ORPHEUSPLUS_CONFIG"]
+
 
 def import_check():
     _check_config()
@@ -11,22 +13,25 @@ def import_check():
 def _check_config():
     # Check if orpheusplus_root_dir is properly configured before installation
     try:
+        global ORPHEUSPLUS_CONFIG
         with open("./config.yaml", encoding="utf-8") as f:
-            config = yaml.load(f, Loader=yaml.FullLoader)
+            ORPHEUSPLUS_CONFIG = yaml.load(f, Loader=yaml.FullLoader)
     except FileNotFoundError:
-        raise ImportError("config.yaml not found in current directory. Abort import.")
+        raise ImportError(
+            "config.yaml not found in current directory. Abort import.")
 
-    if config["orpheusplus_root_dir"] is None:
+    if ORPHEUSPLUS_CONFIG["orpheusplus_root_dir"] is None:
         message = (
             f"orpheusplus_root_dir is not properly configured. "
-            f"orpheusplus_root_dir: {config['orpheusplus_root_dir']}. "
+            f"orpheusplus_root_dir: {ORPHEUSPLUS_CONFIG['orpheusplus_root_dir']}. "
             f"Abort import."
         )
         raise ImportError(message)
 
-    Path(config["orpheusplus_root_dir"]).mkdir(exist_ok=True, parents=True)
+    Path(ORPHEUSPLUS_CONFIG["orpheusplus_root_dir"]).mkdir(
+        exist_ok=True, parents=True)
     global ORPHEUSPLUS_ROOT_DIR
-    ORPHEUSPLUS_ROOT_DIR = Path(config["orpheusplus_root_dir"])
+    ORPHEUSPLUS_ROOT_DIR = Path(ORPHEUSPLUS_CONFIG["orpheusplus_root_dir"])
 
 
 def _create_metadata_and_config():
