@@ -22,6 +22,7 @@ def parse_args(args):
 
 def setup_argparsers():
     parser = argparse.ArgumentParser()
+    parser.set_defaults(func=default_handler)
     subparsers = parser.add_subparsers(title="commands",
                                        description="valid commands")
 
@@ -35,6 +36,11 @@ def setup_argparsers():
     init_parser.set_defaults(func=init_table)
 
     return parser
+
+
+def default_handler():
+    print("No command specified.")
+    print("Use -h or --help for more information.")
 
 
 def dbconfig():
