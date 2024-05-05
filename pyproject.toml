@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["orpheusplus*"]
+
+[project]
+name = "orpheusplus"
+version = "0.0.1"
+authors = [
+  { name = "Zheng-Xiang Ye", email="r12b48005@ntu.edu.tw"},
+  # TODO
+]
+description = "TODO"
+readme = "README.md"
+dependencies = [
+    "mysql-connector-python==8.0.33",
+    "pytest",
+    "maskpass",
+    "pathlib",
+    "PyYAML",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
