@@ -11,7 +11,10 @@ name = "orpheusplus"
 version = "0.0.1"
 authors = [
   { name = "Zheng-Xiang Ye", email="r12b48005@ntu.edu.tw"},
-  # TODO
+  { name = "Tsai, Chih-Yun", email="r12631014@ntu.edu.tw"},
+  { name = "Bai, Ci-Ruei", email="r12631025@ntu.edu.tw"},
+  { name = "Chen, Ssu-Chi", email="r12631036@ntu.edu.tw"},
+  
 ]
 description = "TODO"
 readme = "README.md"
@@ -21,9 +24,13 @@ dependencies = [
     "maskpass",
     "pathlib",
     "PyYAML",
+    "networkx[default]",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+
+[project.scripts]
+orpheusplus = "orpheusplus.cli:main"
