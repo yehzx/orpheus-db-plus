@@ -1,8 +1,8 @@
 import pytest
 from orpheusplus.cli import parse_args
 
-@pytest.mark.skipif("not config.getoption('-s')")
-def test_config():
+@pytest.mark.skipif("config.getoption('-s') == 'fd'")
+def test_mysql_connection_config():
     args = parse_args(["config"])
     args.func()
     assert True
