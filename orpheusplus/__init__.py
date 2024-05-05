@@ -39,7 +39,7 @@ def _create_metadata_and_config():
 
     (ORPHEUSPLUS_ROOT_DIR / ".meta").mkdir(exist_ok=True, parents=True)
     (ORPHEUSPLUS_ROOT_DIR / ".meta/user").touch(exist_ok=True)
-    (ORPHEUSPLUS_ROOT_DIR / ".meta/versiongraph").touch(exist_ok=True)
+    (ORPHEUSPLUS_ROOT_DIR / ".meta/versiongraph").mkdir(exist_ok=True)
 
 
 import_check()
