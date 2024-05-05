@@ -6,6 +6,7 @@ import maskpass
 import mysql.connector
 
 from orpheusplus import ORPHEUSPLUS_CONFIG, ORPHEUSPLUS_ROOT_DIR
+from orpheusplus.exceptions import MySQLConnectionError
 from orpheusplus.mysql_manager import MySQLManager
 
 
@@ -46,13 +47,13 @@ def default_handler():
 def dbconfig():
     print()
     db_name = input("Enter database name: ")
-    db_user = input("Enter database user: ")
+    db_user = input("Enter user name: ")
     user_passwd = maskpass.askpass(prompt="Enter user password: ")
 
     # Save to .meta/user
     with open(ORPHEUSPLUS_ROOT_DIR / ".meta/user", "w") as f:
         json.dump({"db_name": db_name, "user": db_user,
-                  "passwd": user_passwd}, f)
+                   "passwd": user_passwd}, f)
 
     try:
         mydb = MySQLManager(host=ORPHEUSPLUS_CONFIG["host"],
@@ -62,10 +63,10 @@ def dbconfig():
                             database=db_name)
         print("Connection successed.")
         print(f"User: {db_user}, Database: {db_name}")
-    except mysql.connector.Error as e:
+    except MySQLConnectionError as e:
         msg = (
             f"Connection failed. Please check your input.\n"
-            f"Reason: {type(e).__name__} - {e}"
+            f"Reason: {e}"
         )
         raise Exception(msg)
 
