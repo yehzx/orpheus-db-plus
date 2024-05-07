@@ -24,6 +24,9 @@ class MySQLManager():
         self.cursor.execute(query)
         return self.cursor.fetchall()
     
+    def commit(self):
+        self.cnx.commit()
+    
     def create_database(self, db_name):
         query = f"CREATE DATABASE IF NOT EXISTS {db_name}"
         result = self.execute(query)

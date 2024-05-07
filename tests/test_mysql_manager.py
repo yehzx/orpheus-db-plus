@@ -1,4 +1,3 @@
-import mysql.connector
 import pytest
 
 from orpheusplus.exceptions import MySQLConnectionError
@@ -12,9 +11,14 @@ def test_mysql_connection_error():
                             passwd="bar",
                             database="foobar")
 
+
+@pytest.mark.skipif("not config.getoption('--change_state')")
 def test_mysql_connection_database_not_exist():
     # TODO: Need to make sure the host, user, passwd are successful before testing this
     pass
 
+
+@pytest.mark.skipif("not config.getoption('--change_state')")
 def test_execute_mysql_queries():
+    # TODO: Come up with serveral SQL queries to test this
     pass

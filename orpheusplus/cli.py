@@ -1,14 +1,12 @@
 import argparse
-import json
 import sys
 
 import maskpass
-import mysql.connector
 
-from orpheusplus import ORPHEUSPLUS_CONFIG, ORPHEUSPLUS_ROOT_DIR
 from orpheusplus.exceptions import MySQLConnectionError
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.user_manager import UserManager
+from orpheusplus.version_data import VersionData
 
 
 def main():
@@ -32,9 +30,8 @@ def setup_argparsers():
     config_parser.set_defaults(func=dbconfig)
 
     init_parser = subparsers.add_parser("init", help="Initialize version control to a table")
-    init_parser.add_argument("-t", "--table", required=True, help="table name")
+    init_parser.add_argument("-n", "--name", required=True, help="table name")
     init_parser.add_argument("-s", "--structure", required=True, help="table structure")
-    init_parser.add_argument("-d", "--data", help="table data")
     init_parser.set_defaults(func=init_table)
 
     return parser
@@ -68,8 +65,9 @@ def dbconfig(args):
 def init_table(args):
     user = UserManager()
     mydb = MySQLManager(**user.info)
-    table_name = args.table
-    table_structure = args.structure
+    table = VersionData(cnx=mydb)
+    # TODO: Implement VersionData
+    # table.init_table(args.name, args.structure)
 
 
 if __name__ == "__main__":

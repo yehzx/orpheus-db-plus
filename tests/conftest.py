@@ -1,5 +1,6 @@
 import pytest
 
 def pytest_addoption(parser):
-    pass
+    parser.addoption("--change_state", action="store_true",
+                     help="Run tests that change database states")
     
