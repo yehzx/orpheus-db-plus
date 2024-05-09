@@ -112,3 +112,7 @@ class VersionData():
                 row.insert(0, None)
                 data.append(tuple(row))
         return data    
+    
+    def delete(self):
+        self.version_graph.delete()
+        self.cnx.execute(f"DROP TABLE {self.table_name}{self.table_suffix}")

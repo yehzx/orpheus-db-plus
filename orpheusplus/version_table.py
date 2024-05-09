@@ -30,8 +30,9 @@ class VersionTable():
         try:
             stmt = f"SELECT rid FROM {self.table_name}{self.version_table_suffix} WHERE version = {parent}"
             result = self.cnx.execute(stmt)
-            print(f"Parent version: {result}")
             return [r[0] for r in result]
         except:
-            print("Parent version: []")
             return [] 
+    
+    def delete(self):
+        self.cnx.execute(f"DROP TABLE {self.table_name}{self.version_table_suffix}")

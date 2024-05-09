@@ -1,5 +1,5 @@
 import pickle
-
+import os
 import networkx as nx
 
 from orpheusplus import ORPHEUSPLUS_ROOT_DIR
@@ -98,3 +98,7 @@ class VersionGraph():
         overlap -= len(operations.remove_rids)
         
         return total_rids, overlap
+    
+    def delete(self):
+        self.version_table.delete()
+        os.remove(self.version_graph_path)

@@ -12,7 +12,6 @@ from orpheusplus.version_data import VersionData
 def main():
     args = parse_args(sys.argv[1:])
     args.func(args)
-    pass
 
 
 def parse_args(args):
@@ -33,6 +32,12 @@ def setup_argparsers():
     init_parser.add_argument("-n", "--name", required=True, help="table name")
     init_parser.add_argument("-s", "--structure", required=True, help="table structure")
     init_parser.set_defaults(func=init_table)
+
+    remove_parser = subparsers.add_parser("remove", help="Drop a version table")
+    remove_parser.add_argument("-n", "--name", required=True, help="table name")
+    remove_parser.add_argument("-y", "--yes", action="store_true")
+    remove_parser.set_defaults(func=remove)
+
 
     # TODO: this is not truly a "commit", it only allows insert now
     insert_parser = subparsers.add_parser("insert", help="Create a new version")
@@ -74,12 +79,29 @@ def init_table(args):
     table = VersionData(cnx=mydb)
     table.init_table(args.name, args.structure)
 
+
 def insert(args):
     user = UserManager()
     mydb = MySQLManager(**user.info)
     table = VersionData(cnx=mydb)
     table.load_table(args.name)
     table.insert(args.data)
+
+
+def remove(args):
+    user = UserManager()
+    mydb = MySQLManager(**user.info)    
+    table = VersionData(cnx=mydb)
+    table.load_table(args.name)
+    if not args.yes:
+        ans = input(f"Do you really want to drop `{args.name}`? (y/n)")
+        if ans == "y":
+            table.delete()
+            print(f"Drop `{args.name}`")
+        else:
+            print(f"Keep `{args.name}`")
+    else:
+        table.delete()
 
 if __name__ == "__main__":
     main()
