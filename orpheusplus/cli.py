@@ -34,6 +34,12 @@ def setup_argparsers():
     init_parser.add_argument("-s", "--structure", required=True, help="table structure")
     init_parser.set_defaults(func=init_table)
 
+    # TODO: this is not truly a "commit", it only allows insert now
+    insert_parser = subparsers.add_parser("insert", help="Create a new version")
+    insert_parser.add_argument("-d", "--data", required=True)
+    insert_parser.add_argument("-n", "--name", required=True, help="table name")
+    insert_parser.set_defaults(func=insert)
+
     return parser
 
 
@@ -66,9 +72,14 @@ def init_table(args):
     user = UserManager()
     mydb = MySQLManager(**user.info)
     table = VersionData(cnx=mydb)
-    # TODO: Implement VersionData
-    # table.init_table(args.name, args.structure)
+    table.init_table(args.name, args.structure)
 
+def insert(args):
+    user = UserManager()
+    mydb = MySQLManager(**user.info)
+    table = VersionData(cnx=mydb)
+    table.load_table(args.name)
+    table.insert(args.data)
 
 if __name__ == "__main__":
     main()
