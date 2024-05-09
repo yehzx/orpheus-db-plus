@@ -20,8 +20,12 @@ class MySQLManager():
         except mysql.connector.Error as e:
             self._handle_known_connection_errors(e)
     
-    def execute(self, query):
-        self.cursor.execute(query)
+    def execute(self, stmt):
+        self.cursor.execute(stmt)
+        return self.cursor.fetchall()
+    
+    def executemany(self, stmt, data):
+        self.cursor.executemany(stmt, data)
         return self.cursor.fetchall()
     
     def commit(self):
