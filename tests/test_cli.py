@@ -9,7 +9,7 @@ def version_table(cnx):
     yield table_name
     table = VersionData(cnx)
     table.load_table(table_name)
-    table.delete()
+    table.remove()
 
 
 @pytest.mark.skipif("config.getoption('-s') == 'fd'")

@@ -2,7 +2,7 @@ import pickle
 import os
 import networkx as nx
 
-from orpheusplus import ORPHEUSPLUS_ROOT_DIR
+from orpheusplus import VERSIONGRAPH_DIR
 from orpheusplus.operation import Operation
 from orpheusplus.version_table import VersionTable
 from orpheusplus.mysql_manager import MySQLManager
@@ -19,10 +19,11 @@ class VersionGraph():
 
     def init_version_graph(self, table_name):
         self.table_name = table_name
-        self.version_graph_path = ORPHEUSPLUS_ROOT_DIR / f".meta/versiongraph/{table_name}.gml"
+        self.version_graph_path = VERSIONGRAPH_DIR / f"{table_name}"
         if self.version_graph_path.is_file():
             print(f"Version graph exists. Overwrite {self.version_graph_path}")
 
+        self.head = 0
         self.version_count = 0
         self.G = nx.DiGraph()
         self._save_graph()
@@ -37,14 +38,10 @@ class VersionGraph():
         self.version_table = VersionTable(self.cnx)
         self.version_table.init_version_table(self.table_name)
 
-    def _save_graph(self):
-        self._save_graph_attr() 
-        with open(self.version_graph_path, "wb") as f:
-            pickle.dump(self.G, f)
 
     def load_version_graph(self, table_name):
         self.table_name = table_name
-        self.version_graph_path = ORPHEUSPLUS_ROOT_DIR / f".meta/versiongraph/{table_name}.gml"
+        self.version_graph_path = VERSIONGRAPH_DIR / f"{table_name}"
         try:
             with open(self.version_graph_path, "rb") as f:
                 self.G = pickle.load(f)
@@ -54,6 +51,15 @@ class VersionGraph():
         
         self._load_version_table()
     
+    def switch_version(self, version):
+        self.head = version
+        self._save_graph()
+
+    def _save_graph(self):
+        self._save_graph_attr() 
+        with open(self.version_graph_path, "wb") as f:
+            pickle.dump(self.G, f)    
+
     def _save_graph_attr(self):
         self.G.graph["head"] = self.head
         self.G.graph["version_count"] = self.version_count        
@@ -67,7 +73,7 @@ class VersionGraph():
         self.version_table.load_version_table(self.table_name)
 
     def add_version(self, operations: Operation):
-        num_rids, overlap = self._calculate_num_rids_and_overlap(self.head, operations)
+        num_rids, overlap = self._get_num_rids_and_overlap(self.head, operations)
 
         old_head = self.head
         self.version_count += 1
@@ -83,9 +89,11 @@ class VersionGraph():
         self.version_table.add_version(operations=operations,
                                        version_id=self.head,
                                        parent=old_head)
+        _ = Operation().init_operation(self.table_name, old_head)
         self._save_graph()
+        
 
-    def _calculate_num_rids_and_overlap(self, parent, operations: Operation):
+    def _get_num_rids_and_overlap(self, parent, operations: Operation):
         total_rids = 0
         overlap = 0
         try:
@@ -99,6 +107,6 @@ class VersionGraph():
         
         return total_rids, overlap
     
-    def delete(self):
+    def remove(self):
         self.version_table.delete()
         os.remove(self.version_graph_path)

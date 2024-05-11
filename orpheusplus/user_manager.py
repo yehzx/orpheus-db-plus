@@ -1,6 +1,6 @@
 import json
 
-from orpheusplus import ORPHEUSPLUS_ROOT_DIR
+from orpheusplus import USER_PATH
 
 
 class UserManager():
@@ -10,7 +10,7 @@ class UserManager():
     def load_user(self):
         # Load from .meta/user
         try:
-            with open(ORPHEUSPLUS_ROOT_DIR / ".meta/user", "r") as f:
+            with open(USER_PATH, "r") as f:
                 user = json.load(f)
         except:
             self._handle_user_not_exist()
@@ -20,7 +20,7 @@ class UserManager():
     @staticmethod 
     def save_user(database, user, passwd):
         # Save to .meta/user
-        with open(ORPHEUSPLUS_ROOT_DIR / ".meta/user", "w") as f:
+        with open(USER_PATH, "w") as f:
             json.dump({"database": database, "user": user,
                        "passwd": passwd}, f)
     

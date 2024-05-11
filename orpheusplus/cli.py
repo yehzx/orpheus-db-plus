@@ -38,11 +38,21 @@ def setup_argparsers():
     remove_parser.add_argument("-y", "--yes", action="store_true")
     remove_parser.set_defaults(func=remove)
 
+    checkout_parser = subparsers.add_parser("checkout", help="Checkout a version")
+    checkout_parser.add_argument("-n", "--name", required=True, help="table name")
+    checkout_parser.add_argument("-v", "--version", required=True, type=int,
+                                 help="version number")
+    checkout_parser.set_defaults(func=checkout)
 
     # TODO: this is not truly a "commit", it only allows insert now
-    insert_parser = subparsers.add_parser("insert", help="Create a new version")
-    insert_parser.add_argument("-d", "--data", required=True)
+    commit_parser = subparsers.add_parser("commit", help="Create a new version")
+    commit_parser.add_argument("-n", "--name", required=True, help="table name")
+    commit_parser.add_argument("-m", "--message", help="commit message")
+    commit_parser.set_defaults(func=commit)
+
+    insert_parser = subparsers.add_parser("insert", help="Insert data from file")
     insert_parser.add_argument("-n", "--name", required=True, help="table name")
+    insert_parser.add_argument("-d", "--data", required=True)
     insert_parser.set_defaults(func=insert)
 
     return parser
@@ -80,6 +90,22 @@ def init_table(args):
     table.init_table(args.name, args.structure)
 
 
+def checkout(args):
+    user = UserManager()
+    mydb = MySQLManager(**user.info)
+    table = VersionData(cnx=mydb)
+    table.load_table(args.name)
+    table.checkout(args.version)
+
+
+def commit(args):
+    user = UserManager()
+    mydb = MySQLManager(**user.info)
+    table = VersionData(cnx=mydb)
+    table.load_table(args.name)
+    table.commit()
+
+
 def insert(args):
     user = UserManager()
     mydb = MySQLManager(**user.info)
@@ -96,12 +122,12 @@ def remove(args):
     if not args.yes:
         ans = input(f"Do you really want to drop `{args.name}`? (y/n)")
         if ans == "y":
-            table.delete()
+            table.remove()
             print(f"Drop `{args.name}`")
         else:
             print(f"Keep `{args.name}`")
     else:
-        table.delete()
+        table.remove()
 
 if __name__ == "__main__":
     main()

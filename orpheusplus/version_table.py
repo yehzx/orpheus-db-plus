@@ -2,8 +2,9 @@ from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.operation import Operation
 
 class VersionTable():
+    version_table_suffix = "_orpheusplus_version"
+    
     def __init__(self, cnx: MySQLManager):
-        self.version_table_suffix = "_orpheusplus_version"
         self.cnx = cnx
         self.table_name = None
 
@@ -19,12 +20,16 @@ class VersionTable():
     def add_version(self, operations: Operation, version_id, parent):
         # MySQL doesn't support array
         # Insert relations as multiple new rows
-        rids = list(set(self._get_parent_rids(parent)))
-        rids.extend(operations.add_rids)
-        rids.extend(operations.remove_rids)
+        rids = set(self._get_parent_rids(parent))
+        for rid in operations.add_rids:
+            rids.add(rid)
+        for rid in operations.remove_rids:
+            rids.remove(rid)
+        rids = sorted(list(rids))
         values = [(version_id, rid) for rid in rids]
         stmt = f"INSERT INTO {self.table_name}{self.version_table_suffix} VALUES (%s, %s)" 
         self.cnx.executemany(stmt, values)
+        self.cnx.commit()
 
     def _get_parent_rids(self, parent):
         try:
@@ -36,3 +41,6 @@ class VersionTable():
     
     def delete(self):
         self.cnx.execute(f"DROP TABLE {self.table_name}{self.version_table_suffix}")
+
+
+VERSION_TABLE_SUFFIX = VersionTable.version_table_suffix

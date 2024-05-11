@@ -36,10 +36,19 @@ def _check_config():
 
 def _create_metadata_and_config():
     global ORPHEUSPLUS_ROOT_DIR
+    global USER_PATH
+    global VERSIONGRAPH_DIR
+    global OPERATION_DIR
 
-    (ORPHEUSPLUS_ROOT_DIR / ".meta").mkdir(exist_ok=True, parents=True)
-    (ORPHEUSPLUS_ROOT_DIR / ".meta/user").touch(exist_ok=True)
-    (ORPHEUSPLUS_ROOT_DIR / ".meta/versiongraph").mkdir(exist_ok=True)
+    meta = ORPHEUSPLUS_ROOT_DIR / ".meta"
+    USER_PATH = meta / "user"
+    VERSIONGRAPH_DIR = meta / "versiongraph"
+    OPERATION_DIR = meta / "operation"
+
+    meta.mkdir(exist_ok=True, parents=True)
+    USER_PATH.touch(exist_ok=True)
+    VERSIONGRAPH_DIR.mkdir(exist_ok=True)
+    OPERATION_DIR.mkdir(exist_ok=True)
 
 
 import_check()

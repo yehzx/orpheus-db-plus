@@ -25,6 +25,7 @@ dependencies = [
     "pathlib",
     "PyYAML",
     "networkx[default]",
+    "sqlparse"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
