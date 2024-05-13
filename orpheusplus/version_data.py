@@ -54,7 +54,7 @@ class VersionData():
     
     def _create_operation(self):
         self.operation = Operation()
-        self.operation.init_operation(self.table_name, self.version_graph.head)
+        self.operation.init_operation(self.table_name, self.get_current_version())
     
     def load_table(self, table_name):
         self.table_name = table_name
@@ -62,10 +62,15 @@ class VersionData():
         self.version_graph = VersionGraph(self.cnx)
         self.version_graph.load_version_graph(table_name)
         self.operation = Operation()
-        self.operation.load_operation(self.table_name, self.version_graph.head)
+        self.operation.load_operation(self.table_name, self.get_current_version())
     
     def checkout(self, version):
-        # TODO: make sure data is commited before checkout
+        if version == self.get_current_version():
+            print("Discard all changes.")
+            self.operation.clear_stmts()
+        elif not self.operation.is_empty():
+            print("Please commit changes or discard them by `checkout head`")
+            return
         rids = self.version_graph.switch_version(version)
         rids = [(rid,) for rid in rids]
         stmt = f"DELETE FROM {self.table_name}{self.now_table_suffix}"
@@ -159,11 +164,9 @@ class VersionData():
         self.cnx.execute(f"DROP TABLE {self.table_name}{self.data_table_suffix}")
         self.cnx.execute(f"DROP TABLE {self.table_name}{self.now_table_suffix}")
 
-    def _get_current_version(self, version_id):
-        if version_id is None:
-            version_id = self.version_graph.head
-        return version_id
-
+    def get_current_version(self):
+        return self.version_graph.head
+    
     @staticmethod 
     def _arg_stmt(table_structure, with_rid=True):
         length = len(table_structure) if with_rid else len(table_structure) - 1

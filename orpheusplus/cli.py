@@ -42,8 +42,7 @@ def setup_argparsers():
 
     checkout_parser = subparsers.add_parser("checkout", help="Checkout a version")
     checkout_parser.add_argument("-n", "--name", required=True, help="table name")
-    checkout_parser.add_argument("-v", "--version", required=True, type=int,
-                                 help="version number")
+    checkout_parser.add_argument("-v", "--version", required=True, help="version number or `head`")
     checkout_parser.set_defaults(func=checkout)
 
     commit_parser = subparsers.add_parser("commit", help="Create a new version")
@@ -112,7 +111,7 @@ def ls(args):
             print(table.stem)
 
 
-def _connect_table():
+def _connect_table() -> VersionData:
     user = UserManager()
     mydb = MySQLManager(**user.info)
     table = VersionData(cnx=mydb)
@@ -127,7 +126,11 @@ def init_table(args):
 def checkout(args):
     table = _connect_table()
     table.load_table(args.name)
-    table.checkout(args.version)
+    if args.version == "head":
+        version = table.get_current_version()
+    else:
+        version = args.version
+    table.checkout(version)
 
 
 def commit(args):
