@@ -5,16 +5,17 @@ ORPHEUSDB: Bolt-on Versioning for Relational Databases
 (https://www.vldb.org/pvldb/vol10/p1130-huang.pdf)
 """
 import csv
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
+
 from orpheusplus.mysql_manager import MySQLManager
-from orpheusplus.version_graph import VersionGraph
-from orpheusplus.version_table import VersionTable
 from orpheusplus.operation import Operation
-import pickle
+from orpheusplus.version_graph import VersionGraph
 
 
 class VersionData():
     data_table_suffix = "_orpheusplus"
+    # The table used to store the current version of the table
+    now_table_suffix = "_orpheusplus_now"
     
     def __init__(self, cnx: MySQLManager):
         self.cnx = cnx
@@ -27,11 +28,17 @@ class VersionData():
         self.table_name = table_name
         table_structure = self._parse_csv_structure(table_structure)
 
+        # Initialize data table
         # rid: as an index for each relation
-        cols = "rid INT AUTO_INCREMENT PRIMARY KEY, " + table_structure
+        cols = "rid INT PRIMARY KEY, " + table_structure
         stmt = f"CREATE TABLE {table_name}{self.data_table_suffix} ({cols})"
         self.cnx.execute(stmt) 
-        # rid starts from 1
+
+        # Initialize the table for the current version
+        stmt = f"CREATE TABLE {table_name}{self.now_table_suffix} LIKE {table_name}{self.data_table_suffix}"
+        self.cnx.execute(stmt)
+
+        # rid starts from 1 in data table
         stmt = f"ALTER TABLE {table_name}{self.data_table_suffix} AUTO_INCREMENT = 1"
         self.cnx.execute(stmt)
 
@@ -58,23 +65,91 @@ class VersionData():
         self.operation.load_operation(self.table_name, self.version_graph.head)
     
     def checkout(self, version):
-        self.version_graph.switch_version(version)
-
-    def insert(self, filepath, version_id=None): 
-        version_id = self._get_current_version(version_id)
-        data = self._parse_csv_data(filepath)
+        # TODO: make sure data is commited before checkout
+        rids = self.version_graph.switch_version(version)
+        rids = [(rid,) for rid in rids]
+        stmt = f"DELETE FROM {self.table_name}{self.now_table_suffix}"
+        self.cnx.execute(stmt)
+        stmt = (
+            f"INSERT INTO {self.table_name}{self.now_table_suffix} "
+            f"SELECT * FROM {self.table_name}{self.data_table_suffix} "
+            f"WHERE rid = %s"
+        )
+        self.cnx.executemany(stmt, rids)
+        self.cnx.commit()
+    
+    def from_file(self, operation, filepath):
+        if operation == "insert":
+            data = self._parse_csv_data(filepath)
+            self.insert(data)
+        elif operation == "delete":
+            data = self._parse_csv_data(filepath)
+            self.delete(data)
+        elif operation == "update":
+            old_data = self._parse_csv_data(filepath[0])
+            new_data = self._parse_csv_data(filepath[1])
+            self.update(old_data, new_data)
+    
+    def add_rid(self, data, max_rid):
+        for row in data:
+            max_rid += 1
+            row.insert(0, max_rid)
+        return data
+            
+    def insert(self, data): 
+        if len(data) == 0:
+            return
         max_rid = self._get_max_rid()
-        if data is None:
-            return 
-        arg_stmt = self._arg_stmt(self.table_structure)
-        stmt = f"INSERT INTO {self.table_name}{self.data_table_suffix} VALUES {arg_stmt}"
+        arg_stmt = self._arg_stmt(self.table_structure, with_rid=True)   
+        data = self.add_rid(data, max_rid)
+        stmt = f"INSERT INTO {self.table_name}{self.now_table_suffix} VALUES {arg_stmt}"
         self.cnx.executemany(stmt, data)
         self.cnx.commit()
-        # TODO: get `rid` of the inserted data, and pass it to version_table and version_graph
         self.operation.insert(start_rid=max_rid + 1, num_rids=len(data))
+    
+    def delete(self, data):
+        if len(data) == 0:
+            return
+        arg_stmt = self._arg_stmt(self.table_structure, with_rid=False)
+        cols = list(self.table_structure.keys())
+        cols.remove("rid")
+        data_stmt = tuple(tuple(each) for each in data)
+        stmt = (
+            f"SELECT rid FROM {self.table_name}{self.now_table_suffix} "
+            f"WHERE ({', '.join(cols)}) IN {data_stmt}"
+        )   
+        rids = self.cnx.execute(stmt)
+        rids = [rid[0] for rid in rids]
+
+        stmt = (
+            f"DELETE FROM {self.table_name}{self.now_table_suffix} "
+            f"WHERE ({', '.join(cols)}) IN {data_stmt}"
+        )
+        self.cnx.execute(stmt)
+        self.cnx.commit()
+        self.operation.delete(rids)
+
+    def update(self, old_data, new_data):
+        if len(old_data) != len(new_data) or len(old_data) == 0:
+            return
+        self.delete(old_data)
+        self.insert(new_data)
     
     def commit(self):
         self.operation.parse()
+        cols = list(self.table_structure.keys())
+        cols.remove("rid")
+        rids = tuple(rid for rid in self.operation.add_rids)
+        if not rids:
+            print("No revision to the last version. Abort commit.")
+            return
+        stmt = (
+            f"INSERT INTO {self.table_name}{self.data_table_suffix} "
+            f"SELECT * FROM {self.table_name}{self.now_table_suffix} "
+            f"WHERE rid IN {rids}"
+        )
+        self.cnx.execute(stmt)
+        self.cnx.commit()
         self.version_graph.add_version(operations=self.operation)
         self._create_operation()
     
@@ -82,6 +157,7 @@ class VersionData():
         self.version_graph.remove()
         self.operation.remove()
         self.cnx.execute(f"DROP TABLE {self.table_name}{self.data_table_suffix}")
+        self.cnx.execute(f"DROP TABLE {self.table_name}{self.now_table_suffix}")
 
     def _get_current_version(self, version_id):
         if version_id is None:
@@ -89,19 +165,25 @@ class VersionData():
         return version_id
 
     @staticmethod 
-    def _arg_stmt(table_structure):
-        stmt = "(" + "%s, " * len(table_structure)
-        stmt = stmt[:-2] + ")"
+    def _arg_stmt(table_structure, with_rid=True):
+        length = len(table_structure) if with_rid else len(table_structure) - 1
+        stmt = f"({', '.join(['%s'] * length)})"
         return stmt
     
     def _get_max_rid(self):
         stmt = f"SELECT MAX(rid) FROM {self.table_name}{self.data_table_suffix}"
-        result = self.cnx.execute(stmt)
+        result_1 = self.cnx.execute(stmt)
+        stmt = f"SELECT MAX(rid) FROM {self.table_name}{self.now_table_suffix}"
+        result_2 = self.cnx.execute(stmt)
         try:
-            max_rid = int(result[0][0])
-        # This raises when the table is empty
+            max_rid_1 = int(result_1[0][0])
         except TypeError:
-            max_rid = 0
+            max_rid_1 = 0
+        try:
+            max_rid_2 = int(result_2[0][0])
+        except TypeError:
+            max_rid_2 = 0
+        max_rid = max(max_rid_1, max_rid_2)
         return max_rid
     
     def _get_table_types(self):
@@ -133,9 +215,9 @@ class VersionData():
         with open(filepath, newline="") as f:
             reader = csv.reader(f)
             for row in reader:
-                row.insert(0, None)
-                data.append(tuple(row))
+                data.append(row)
         return data    
     
 
 DATA_TABLE_SUFFIX = VersionData.data_table_suffix
+NOW_TABLE_SUFFIX = VersionData.now_table_suffix

@@ -54,6 +54,9 @@ class VersionGraph():
     def switch_version(self, version):
         self.head = version
         self._save_graph()
+        self._load_version_table()
+        rids = self.version_table.get_version_rids(version)
+        return rids
 
     def _save_graph(self):
         self._save_graph_attr() 
@@ -82,14 +85,16 @@ class VersionGraph():
 
         self.G.add_node(self.head, num_rids=num_rids)
         try:
-            self.G.add_edge(old_head, self.head, overlap=overlap)
+            if self.G.has_node(old_head):
+                self.G.add_edge(old_head, self.head, overlap=overlap)
         except:
             pass
 
         self.version_table.add_version(operations=operations,
-                                       version_id=self.head,
+                                       version=self.head,
                                        parent=old_head)
-        _ = Operation().init_operation(self.table_name, old_head)
+        
+        operations.commit(child=self.head)
         self._save_graph()
         
 

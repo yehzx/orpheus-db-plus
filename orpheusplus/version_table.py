@@ -17,21 +17,21 @@ class VersionTable():
     def load_version_table(self, table_name):
         self.table_name = table_name
 
-    def add_version(self, operations: Operation, version_id, parent):
+    def add_version(self, operations: Operation, version, parent):
         # MySQL doesn't support array
         # Insert relations as multiple new rows
-        rids = set(self._get_parent_rids(parent))
+        rids = set(self.get_version_rids(parent))
         for rid in operations.add_rids:
             rids.add(rid)
         for rid in operations.remove_rids:
             rids.remove(rid)
         rids = sorted(list(rids))
-        values = [(version_id, rid) for rid in rids]
+        values = [(version, rid) for rid in rids]
         stmt = f"INSERT INTO {self.table_name}{self.version_table_suffix} VALUES (%s, %s)" 
         self.cnx.executemany(stmt, values)
         self.cnx.commit()
 
-    def _get_parent_rids(self, parent):
+    def get_version_rids(self, parent):
         try:
             stmt = f"SELECT rid FROM {self.table_name}{self.version_table_suffix} WHERE version = {parent}"
             result = self.cnx.execute(stmt)

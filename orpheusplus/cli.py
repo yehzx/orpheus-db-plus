@@ -1,8 +1,7 @@
 import argparse
 import sys
 
-import maskpass
-
+from orpheusplus import VERSIONGRAPH_DIR
 from orpheusplus.exceptions import MySQLConnectionError
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.user_manager import UserManager
@@ -33,6 +32,9 @@ def setup_argparsers():
     init_parser.add_argument("-s", "--structure", required=True, help="table structure")
     init_parser.set_defaults(func=init_table)
 
+    ls_parser = subparsers.add_parser("ls", help="List all tables under version control")
+    ls_parser.set_defaults(func=ls)
+
     remove_parser = subparsers.add_parser("remove", help="Drop a version table")
     remove_parser.add_argument("-n", "--name", required=True, help="table name")
     remove_parser.add_argument("-y", "--yes", action="store_true")
@@ -44,7 +46,6 @@ def setup_argparsers():
                                  help="version number")
     checkout_parser.set_defaults(func=checkout)
 
-    # TODO: this is not truly a "commit", it only allows insert now
     commit_parser = subparsers.add_parser("commit", help="Create a new version")
     commit_parser.add_argument("-n", "--name", required=True, help="table name")
     commit_parser.add_argument("-m", "--message", help="commit message")
@@ -53,7 +54,23 @@ def setup_argparsers():
     insert_parser = subparsers.add_parser("insert", help="Insert data from file")
     insert_parser.add_argument("-n", "--name", required=True, help="table name")
     insert_parser.add_argument("-d", "--data", required=True)
-    insert_parser.set_defaults(func=insert)
+    insert_parser.set_defaults(func=manipulate, op="insert")
+
+    delete_parser = subparsers.add_parser("delete", help="Delete data from file")
+    delete_parser.add_argument("-n", "--name", required=True, help="table name")
+    delete_parser.add_argument("-d", "--data", required=True)
+    delete_parser.set_defaults(func=manipulate, op="delete")
+
+    update_parser = subparsers.add_parser("update", help="Update data from file")
+    update_parser.add_argument("-n", "--name", required=True, help="table name")
+    update_parser.add_argument("-d", "--data", required=True, nargs=2,
+                               help="OLD_DATA NEW_DATA")
+    update_parser.set_defaults(func=manipulate, op="update")
+
+    run_parser = subparsers.add_parser("run", help="Run a SQL script")
+    run_parser.add_argument("-n", "--name", required=True, help="table name")
+    run_parser.add_argument("-f", "--file", required=True, help="file path")
+    run_parser.set_defaults(func=run) 
 
     return parser
 
@@ -64,6 +81,7 @@ def default_handler():
 
 
 def dbconfig(args):
+    import maskpass
     print()
     db_name = input("Enter database name: ")
     db_user = input("Enter user name: ")
@@ -83,41 +101,49 @@ def dbconfig(args):
         raise Exception(msg)
 
 
-def init_table(args):
+def ls(args):
+    # The files in VERSIONGRAPH_DIR are all version tables.
+    tables = list(VERSIONGRAPH_DIR.glob("*"))
+    if len(tables) == 0:
+        print("No version table found.")
+    else:
+        print(f"Find {len(tables)} version tables.")
+        for table in tables:
+            print(table.stem)
+
+
+def _connect_table():
     user = UserManager()
     mydb = MySQLManager(**user.info)
     table = VersionData(cnx=mydb)
+    return table
+
+
+def init_table(args):
+    table = _connect_table()
     table.init_table(args.name, args.structure)
 
 
 def checkout(args):
-    user = UserManager()
-    mydb = MySQLManager(**user.info)
-    table = VersionData(cnx=mydb)
+    table = _connect_table()
     table.load_table(args.name)
     table.checkout(args.version)
 
 
 def commit(args):
-    user = UserManager()
-    mydb = MySQLManager(**user.info)
-    table = VersionData(cnx=mydb)
+    table = _connect_table()
     table.load_table(args.name)
     table.commit()
 
 
-def insert(args):
-    user = UserManager()
-    mydb = MySQLManager(**user.info)
-    table = VersionData(cnx=mydb)
+def manipulate(args):
+    table = _connect_table()
     table.load_table(args.name)
-    table.insert(args.data)
+    table.from_file(args.op, args.data)
 
 
 def remove(args):
-    user = UserManager()
-    mydb = MySQLManager(**user.info)    
-    table = VersionData(cnx=mydb)
+    table = _connect_table()
     table.load_table(args.name)
     if not args.yes:
         ans = input(f"Do you really want to drop `{args.name}`? (y/n)")
@@ -128,6 +154,18 @@ def remove(args):
             print(f"Keep `{args.name}`")
     else:
         table.remove()
+
+
+def run(args):
+    from orpheusplus.query_parser import SQLParser
+
+    user = UserManager()
+    mydb = MySQLManager(**user.info)
+    table = VersionData(cnx=mydb)
+    parser = SQLParser().parse(args.file)
+
+
+
 
 if __name__ == "__main__":
     main()
