@@ -28,10 +28,10 @@ def _check_config():
         with open(DEFAULT_DIR / "config.yaml", "w", encoding="utf-8")  as f:
             yaml.dump(config, f)
         print(
-            f"config.yaml` not found.\n"
+            f"First time setup:\n"
             f"Create `config.yaml` at {str(DEFAULT_DIR / 'config.yaml')}.\n"
             f"Save orpheusplus data to {str(DEFAULT_DIR)}\n"
-            f"Please run `orpheusplus config` to change default directory."
+            f"Please run `orpheusplus config` again to change default directory and set up user."
         )
         sys.exit()
 
