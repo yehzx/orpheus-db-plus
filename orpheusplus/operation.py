@@ -51,8 +51,10 @@ class Operation():
             self.stmts.append(("delete", (start_rid, num_rids), now))
         self.save_operation()
 
-    def clear_stmts(self):
+    def clear(self):
         self.stmts = []
+        self.add_rids = []
+        self.remove_rids = []
         self.save_operation()
     
     def is_empty(self):
