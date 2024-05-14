@@ -8,14 +8,14 @@ relational databases. We currently decide to use MySQL as the backend database.
 1. Install `MySQL Community Server` and follow the instructions to set up it. ([MySQL Download](https://dev.mysql.com/downloads/mysql/))
 
 2. Install this package (can use either `anaconda` or `virtualenv`)
-    ```bash
+    ```
     conda create -n orpheusplus python=3.11
     conda activate orpheusplus
     pip install -e .
     ```
 
 3. Run `orpheusplus config` to perform the first-time setup.
-    ```bash
+    ```
     orpheusplus config 
     >> First time setup:
     >> Create `config.yaml` at ... 
