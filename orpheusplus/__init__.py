@@ -22,7 +22,7 @@ def _check_config():
         config = {}
         config["host"] = "127.0.0.1"
         config["port"] = 3306
-        config["orpheusplus_root_dir"] = DEFAULT_DIR / ".meta"
+        config["orpheusplus_root_dir"] = DEFAULT_DIR
         config["orpheusplus_root_dir"].mkdir(exist_ok=True, parents=True)
         config["orpheusplus_root_dir"] = str(config["orpheusplus_root_dir"])
         with open(DEFAULT_DIR / "config.yaml", "w", encoding="utf-8")  as f:
