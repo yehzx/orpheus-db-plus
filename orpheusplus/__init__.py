@@ -29,7 +29,7 @@ def _check_config():
             yaml.dump(config, f)
         print(
             f"First time setup:\n"
-            f"Create `config.yaml` at {str(DEFAULT_DIR / 'config.yaml')}.\n"
+            f"Create `config.yaml` at {str(DEFAULT_DIR / 'config.yaml')}\n"
             f"Save orpheusplus data to {str(DEFAULT_DIR)}\n"
             f"Please run `orpheusplus config` again to change default directory and set up user."
         )
