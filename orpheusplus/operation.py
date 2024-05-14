@@ -56,7 +56,7 @@ class Operation():
         self.save_operation()
     
     def is_empty(self):
-        return self.stmts and self.add_rids and self.remove_rids
+        return not (self.stmts or self.add_rids or self.remove_rids)
 
     @staticmethod 
     def _parse_rids(rids):
