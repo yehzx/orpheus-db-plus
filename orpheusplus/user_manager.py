@@ -1,4 +1,5 @@
 import json
+import sys
 
 from orpheusplus import USER_PATH
 
@@ -25,4 +26,7 @@ class UserManager():
                        "passwd": passwd}, f)
     
     def _handle_user_not_exist(self):
-        raise Exception("User not exist. Please run `orpheusplus config`.")
+        sys.exit(
+            "User info incorrect. Please make sure the user exists in MySQL "
+            "and run `orpheusplus config` to reconfigure the user info."
+        )

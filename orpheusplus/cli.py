@@ -1,7 +1,7 @@
 import argparse
 import sys
+from tabulate import tabulate
 
-from orpheusplus import VERSIONGRAPH_DIR
 from orpheusplus.exceptions import MySQLConnectionError
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.user_manager import UserManager
@@ -67,7 +67,6 @@ def setup_argparsers():
     update_parser.set_defaults(func=manipulate, op="update")
 
     run_parser = subparsers.add_parser("run", help="Run a SQL script")
-    run_parser.add_argument("-n", "--name", required=True, help="table name")
     run_parser.add_argument("-f", "--file", required=True, help="file path")
     run_parser.set_defaults(func=run) 
 
@@ -81,16 +80,60 @@ def default_handler():
 
 def dbconfig(args):
     import maskpass
-    print()
-    db_name = input("Enter database name: ")
-    db_user = input("Enter user name: ")
-    user_passwd = maskpass.askpass(prompt="Enter user password: ")
+    import yaml
+    from orpheusplus import ORPHEUSPLUS_CONFIG, DEFAULT_DIR
+
+    host = ORPHEUSPLUS_CONFIG["host"]
+    port = ORPHEUSPLUS_CONFIG["port"]
+    root_dir = ORPHEUSPLUS_CONFIG["orpheusplus_root_dir"]
+
+    print(f"Current host: {host} (press 'enter' to skip)")
+    res = input("Enter host: ")
+    ORPHEUSPLUS_CONFIG["host"] = res if res != "" else host
+    print(f"Current port: {port} (press 'enter' to skip)")
+    res = input("Enter port: ")
+    ORPHEUSPLUS_CONFIG["port"] = res if res != "" else port
+    print(f"Current orpheusplus directory: {root_dir} (press 'enter' to skip)")
+    res = input("Enter orpheusplus directory: ")
+    ORPHEUSPLUS_CONFIG["orpheusplus_root_dir"] = res if res != "" else root_dir
+
+    try:
+        user = UserManager()
+        current_user = user.info["user"]
+        current_db = user.info["database"]
+        current_passwd = user.info["passwd"]
+    except:
+        current_user = ""
+        current_passwd = ""
+        current_db = ""
+
+    if current_db != "":
+        print(f"Current database: {current_db} (press 'enter' to skip)")
+    res = input("Enter database name: ")
+    db_name = res if res != "" else current_db
+
+    if current_user != "":
+        print(f"Current user: {current_user} (press 'enter' to skip)")
+    res = input("Enter user name: ")
+    
+    if res != "":
+        db_user = res
+        user_passwd = maskpass.askpass(prompt="Enter user password: ")
+    else:
+        db_user = current_user
+        user_passwd = current_passwd
+
+    # Save config
+    with open(DEFAULT_DIR / "config.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(ORPHEUSPLUS_CONFIG, f)
 
     UserManager.save_user(database=db_name, user=db_user, passwd=user_passwd)
+
+    # Test connection
     user = UserManager()
     try:
         mydb = MySQLManager(**user.info)
-        print("Connection successed.")
+        print("Connection succeeded.")
         print(f"User: {db_user}, Database: {db_name}")
     except MySQLConnectionError as e:
         msg = (
@@ -101,6 +144,7 @@ def dbconfig(args):
 
 
 def ls(args):
+    from orpheusplus import VERSIONGRAPH_DIR
     # The files in VERSIONGRAPH_DIR are all version tables.
     tables = list(VERSIONGRAPH_DIR.glob("*"))
     if len(tables) == 0:
@@ -164,10 +208,23 @@ def run(args):
 
     user = UserManager()
     mydb = MySQLManager(**user.info)
-    table = VersionData(cnx=mydb)
-    parser = SQLParser().parse(args.file)
+    parser = SQLParser()
+    stmts, operations = parser.parse_file(args.file)
+    ori_stmts = parser.stmts
+    for ori_stmt, stmt, op in zip(ori_stmts, stmts, operations):
+        result = mydb.execute(stmt)
+        if result:
+            print(ori_stmt)
+            _print_result(result, mydb)
+            print()
 
 
+def _print_result(result, mydb):
+    field = [col[0] for col in mydb.cursor.description]
+    if field[0] == "rid":
+        field = field[1:]
+        result = [row[1:] for row in result]
+    print(tabulate(result, headers=field, tablefmt="fancy_grid")) 
 
 
 if __name__ == "__main__":

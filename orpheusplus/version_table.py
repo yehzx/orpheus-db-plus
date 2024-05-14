@@ -1,8 +1,11 @@
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.operation import Operation
 
+
+VERSION_TABLE_SUFFIX = "_orpheusplus_version" 
+
 class VersionTable():
-    version_table_suffix = "_orpheusplus_version"
+    version_table_suffix = VERSION_TABLE_SUFFIX
     
     def __init__(self, cnx: MySQLManager):
         self.cnx = cnx
@@ -31,9 +34,9 @@ class VersionTable():
         self.cnx.executemany(stmt, values)
         self.cnx.commit()
 
-    def get_version_rids(self, parent):
+    def get_version_rids(self, version):
         try:
-            stmt = f"SELECT rid FROM {self.table_name}{self.version_table_suffix} WHERE version = {parent}"
+            stmt = f"SELECT rid FROM {self.table_name}{self.version_table_suffix} WHERE version = {version}"
             result = self.cnx.execute(stmt)
             return [r[0] for r in result]
         except:
@@ -41,6 +44,3 @@ class VersionTable():
     
     def delete(self):
         self.cnx.execute(f"DROP TABLE {self.table_name}{self.version_table_suffix}")
-
-
-VERSION_TABLE_SUFFIX = VersionTable.version_table_suffix

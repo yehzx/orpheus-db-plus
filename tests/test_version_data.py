@@ -10,8 +10,8 @@ def test_parse_csv_structure():
 
 def test_parse_csv_data():
     result = VersionData._parse_csv_data("./examples/data_1.csv")
-    expected = [(None, '101', '30', '10340'),
-        (None, '102', '18', '4000'),
-        (None, '103', '40', '20500')]
+    expected = [['101', '30', '10340'],
+                ['102', '18', '4000'],
+                ['103', '40', '20500']]
         
     assert result == expected, f"result: {result}\nexpected: {expected}"

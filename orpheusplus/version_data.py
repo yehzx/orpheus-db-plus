@@ -11,11 +11,12 @@ from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.operation import Operation
 from orpheusplus.version_graph import VersionGraph
 
-
+DATA_TABLE_SUFFIX = "_orpheusplus"
+HEAD_SUFFIX = "_orpheusplus_head"
 class VersionData():
-    data_table_suffix = "_orpheusplus"
+    data_table_suffix = DATA_TABLE_SUFFIX
     # The table used to store the current version of the table
-    now_table_suffix = "_orpheusplus_now"
+    head_suffix = HEAD_SUFFIX
     
     def __init__(self, cnx: MySQLManager):
         self.cnx = cnx
@@ -35,7 +36,7 @@ class VersionData():
         self.cnx.execute(stmt) 
 
         # Initialize the table for the current version
-        stmt = f"CREATE TABLE {table_name}{self.now_table_suffix} LIKE {table_name}{self.data_table_suffix}"
+        stmt = f"CREATE TABLE {table_name}{self.head_suffix} LIKE {table_name}{self.data_table_suffix}"
         self.cnx.execute(stmt)
 
         # rid starts from 1 in data table
@@ -73,10 +74,10 @@ class VersionData():
             return
         rids = self.version_graph.switch_version(version)
         rids = [(rid,) for rid in rids]
-        stmt = f"DELETE FROM {self.table_name}{self.now_table_suffix}"
+        stmt = f"DELETE FROM {self.table_name}{self.head_suffix}"
         self.cnx.execute(stmt)
         stmt = (
-            f"INSERT INTO {self.table_name}{self.now_table_suffix} "
+            f"INSERT INTO {self.table_name}{self.head_suffix} "
             f"SELECT * FROM {self.table_name}{self.data_table_suffix} "
             f"WHERE rid = %s"
         )
@@ -107,7 +108,7 @@ class VersionData():
         max_rid = self._get_max_rid()
         arg_stmt = self._arg_stmt(self.table_structure, with_rid=True)   
         data = self.add_rid(data, max_rid)
-        stmt = f"INSERT INTO {self.table_name}{self.now_table_suffix} VALUES {arg_stmt}"
+        stmt = f"INSERT INTO {self.table_name}{self.head_suffix} VALUES {arg_stmt}"
         self.cnx.executemany(stmt, data)
         self.cnx.commit()
         self.operation.insert(start_rid=max_rid + 1, num_rids=len(data))
@@ -120,14 +121,14 @@ class VersionData():
         cols.remove("rid")
         data_stmt = tuple(tuple(each) for each in data)
         stmt = (
-            f"SELECT rid FROM {self.table_name}{self.now_table_suffix} "
+            f"SELECT rid FROM {self.table_name}{self.head_suffix} "
             f"WHERE ({', '.join(cols)}) IN {data_stmt}"
         )   
         rids = self.cnx.execute(stmt)
         rids = [rid[0] for rid in rids]
 
         stmt = (
-            f"DELETE FROM {self.table_name}{self.now_table_suffix} "
+            f"DELETE FROM {self.table_name}{self.head_suffix} "
             f"WHERE ({', '.join(cols)}) IN {data_stmt}"
         )
         self.cnx.execute(stmt)
@@ -150,7 +151,7 @@ class VersionData():
             return
         stmt = (
             f"INSERT INTO {self.table_name}{self.data_table_suffix} "
-            f"SELECT * FROM {self.table_name}{self.now_table_suffix} "
+            f"SELECT * FROM {self.table_name}{self.head_suffix} "
             f"WHERE rid IN {rids}"
         )
         self.cnx.execute(stmt)
@@ -162,7 +163,7 @@ class VersionData():
         self.version_graph.remove()
         self.operation.remove()
         self.cnx.execute(f"DROP TABLE {self.table_name}{self.data_table_suffix}")
-        self.cnx.execute(f"DROP TABLE {self.table_name}{self.now_table_suffix}")
+        self.cnx.execute(f"DROP TABLE {self.table_name}{self.head_suffix}")
 
     def get_current_version(self):
         return self.version_graph.head
@@ -176,7 +177,7 @@ class VersionData():
     def _get_max_rid(self):
         stmt = f"SELECT MAX(rid) FROM {self.table_name}{self.data_table_suffix}"
         result_1 = self.cnx.execute(stmt)
-        stmt = f"SELECT MAX(rid) FROM {self.table_name}{self.now_table_suffix}"
+        stmt = f"SELECT MAX(rid) FROM {self.table_name}{self.head_suffix}"
         result_2 = self.cnx.execute(stmt)
         try:
             max_rid_1 = int(result_1[0][0])
@@ -220,7 +221,3 @@ class VersionData():
             for row in reader:
                 data.append(row)
         return data    
-    
-
-DATA_TABLE_SUFFIX = VersionData.data_table_suffix
-NOW_TABLE_SUFFIX = VersionData.now_table_suffix

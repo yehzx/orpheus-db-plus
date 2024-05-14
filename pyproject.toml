@@ -25,7 +25,9 @@ dependencies = [
     "pathlib",
     "PyYAML",
     "networkx[default]",
-    "sqlparse"
+    "sqlparse",
+    "tabulate",
+    "wcwidth"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
