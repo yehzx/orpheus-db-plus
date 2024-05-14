@@ -16,7 +16,7 @@ class SQLParser():
         self.stmts = []
         self.parsed = []
         self.operations = []
-        self._is_modified = []
+        self.is_modified = []
     
     def parse_file(self, filepath):
         with open(filepath, 'r') as f:
@@ -38,13 +38,13 @@ class SQLParser():
                 t = token.value.lower()
                 if t == "vtable":
                     tokens = self._handle_vtable(tokens, idx)
-                    self._is_modified.append(True)
+                    self.is_modified.append(True)
                     break
                 elif t == "version":
                     tokens = self._handle_version(tokens)
-                    self._is_modified.append(True)
+                    self.is_modified.append(True)
                     break
-            self._is_modified.append(False)
+            self.is_modified.append(False)
             self.operations.append(self._get_operation_type(tokens))
             self.parsed.append(self._rebuild_stmt(tokens))
 

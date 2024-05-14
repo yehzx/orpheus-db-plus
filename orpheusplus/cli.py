@@ -211,6 +211,7 @@ def run(args):
     parser = SQLParser()
     stmts, operations = parser.parse_file(args.file)
     ori_stmts = parser.stmts
+    # TODO: if the statements are modified, maybe let VersionData handle them.
     for ori_stmt, stmt, op in zip(ori_stmts, stmts, operations):
         result = mydb.execute(stmt)
         if result:

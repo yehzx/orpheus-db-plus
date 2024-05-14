@@ -68,7 +68,7 @@ class VersionData():
     def checkout(self, version):
         if version == self.get_current_version():
             print("Discard all changes.")
-            self.operation.clear_stmts()
+            self.operation.clear()
         elif not self.operation.is_empty():
             print("Please commit changes or discard them by `checkout head`")
             return
