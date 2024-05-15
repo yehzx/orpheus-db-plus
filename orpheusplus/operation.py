@@ -28,16 +28,19 @@ class Operation():
         except:
             raise Exception(f"{self.operation_path} not properly initialized.")
     
-    def commit(self, child):
+    def commit(self, child, *commit_info):
+        # If commit message has more than 72 characters, truncate it.
+        msg = commit_info[0]
+        msg = msg[:72]
         self.add_rids = []
         self.remove_rids = []
-        self.history.append(("commit", child, datetime.now()))
+        self.history.append(("commit", commit_info, datetime.now()))
         self.save_operation()
     
     def remove(self):
         # tablename_version
         table = self.operation_path.stem.rsplit("_")[0]
-        for operation_path in self.operation_path.parent.glob(f"{table}_*"):
+        for operation_path in self.operation_path.parent.glob(f"{table}_[0-9]*"):
             operation_path.unlink()
     
     def insert(self, start_rid, num_rids):

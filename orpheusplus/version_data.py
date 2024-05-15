@@ -141,7 +141,7 @@ class VersionData():
         self.delete(old_data)
         self.insert(new_data)
     
-    def commit(self):
+    def commit(self, *commit_info):
         self.operation.parse()
         cols = list(self.table_structure.keys())
         cols.remove("rid")
@@ -156,7 +156,7 @@ class VersionData():
         )
         self.cnx.execute(stmt)
         self.cnx.commit()
-        self.version_graph.add_version(operations=self.operation)
+        self.version_graph.add_version(self.operation, commit_info)
         self._create_operation()
     
     def remove(self):

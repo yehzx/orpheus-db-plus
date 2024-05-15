@@ -53,15 +53,18 @@ def _check_metadata():
     global USER_PATH
     global VERSIONGRAPH_DIR
     global OPERATION_DIR
+    global LOG_DIR
 
     meta = ORPHEUSPLUS_ROOT_DIR / ".meta"
     USER_PATH = meta / "user"
     VERSIONGRAPH_DIR = meta / "versiongraph"
     OPERATION_DIR = meta / "operation"
+    LOG_DIR = meta / "log"
 
     meta.mkdir(exist_ok=True, parents=True)
     USER_PATH.touch(exist_ok=True)
     VERSIONGRAPH_DIR.mkdir(exist_ok=True)
     OPERATION_DIR.mkdir(exist_ok=True)
+    LOG_DIR = meta / "log"
 
 import_check()

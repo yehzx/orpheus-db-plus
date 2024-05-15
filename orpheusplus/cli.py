@@ -1,5 +1,7 @@
 import argparse
+import re
 import sys
+
 from tabulate import tabulate
 
 from orpheusplus.exceptions import MySQLConnectionError
@@ -34,6 +36,11 @@ def setup_argparsers():
 
     ls_parser = subparsers.add_parser("ls", help="List all tables under version control")
     ls_parser.set_defaults(func=ls)
+
+    log_parser = subparsers.add_parser("log", help="List all versions of a table")
+    log_parser.add_argument("-n", "--name", required=True, help="table name")
+    log_parser.add_argument("--oneline", action="store_true", help="print oneline log")
+    log_parser.set_defaults(func=log)
 
     remove_parser = subparsers.add_parser("remove", help="Drop a version table")
     remove_parser.add_argument("-n", "--name", required=True, help="table name")
@@ -78,10 +85,18 @@ def default_handler():
     print("Use -h or --help for more information.")
 
 
+def _connect_table() -> VersionData:
+    user = UserManager()
+    mydb = MySQLManager(**user.info)
+    table = VersionData(cnx=mydb)
+    return table
+
+
 def dbconfig(args):
     import maskpass
     import yaml
-    from orpheusplus import ORPHEUSPLUS_CONFIG, DEFAULT_DIR
+
+    from orpheusplus import DEFAULT_DIR, ORPHEUSPLUS_CONFIG
 
     host = ORPHEUSPLUS_CONFIG["host"]
     port = ORPHEUSPLUS_CONFIG["port"]
@@ -145,6 +160,7 @@ def dbconfig(args):
 
 def ls(args):
     from orpheusplus import VERSIONGRAPH_DIR
+
     # The files in VERSIONGRAPH_DIR are all version tables.
     tables = list(VERSIONGRAPH_DIR.glob("*"))
     if len(tables) == 0:
@@ -155,11 +171,52 @@ def ls(args):
             print(table.stem)
 
 
-def _connect_table() -> VersionData:
-    user = UserManager()
-    mydb = MySQLManager(**user.info)
-    table = VersionData(cnx=mydb)
-    return table
+def log(args):
+    from orpheusplus import LOG_DIR
+
+    yellow = "\033[93m"
+    cyan = "\033[96m"
+    off = "\033[00m"
+
+    table = _connect_table()
+    table.load_table(args.name)
+
+    parsed_commits = []
+    with open(LOG_DIR / f"{args.name}") as f:
+        commits = f.read().split("\n\n")
+        for commit in reversed(commits):
+            if not commit:
+                continue
+            parsed_commits.append(_parse_commit(commit))
+
+    msg = "" 
+    if args.oneline:
+        for commit in parsed_commits:
+            msg += f"{yellow}{commit['version']:<4}{off}"
+            if commit["version"] == str(table.version_graph.head):
+                msg += f"{yellow}({cyan}HEAD{yellow}){off} "
+            msg += commit["message"] + "\n"
+        # Restrict the number of lines printed
+        print(msg[:100], end="")
+    else:
+        for commit in parsed_commits:
+            msg += f"{yellow}commit {commit['version']:<4}{off}"
+            if commit["version"] == str(table.version_graph.head):
+                msg += f"{yellow}({cyan}HEAD{yellow}){off} "
+            msg += f"\nAuthor: {commit['author']}"
+            msg += f"\nDate: {commit['date']}"
+            msg += f"\nMessage: {commit['message']}\n\n"
+        print(msg[:200], end="")
+
+
+def _parse_commit(commit):
+    lines = commit.split("\n")
+    version = re.search(r"^commit (\d+)", lines[0]).group(1)
+    author = re.search(r"^Author: (.*)", lines[1]).group(1)
+    date = re.search(r"^Date: (.*)", lines[2]).group(1)
+    message = re.search(r"^Message: (.*)", lines[3]).group(1)
+    return {"version": version, "author": author, "date": date,
+            "message": message}
 
 
 def init_table(args):
@@ -178,9 +235,23 @@ def checkout(args):
 
 
 def commit(args):
+    from datetime import datetime
+
+    from orpheusplus import LOG_DIR
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     table = _connect_table()
     table.load_table(args.name)
-    table.commit()
+    table.commit(args.message, now)
+
+    with open(LOG_DIR / f"{args.name}", "a") as f:
+        f.write(
+            f"commit {table.version_graph.head}\n"
+            f"Author: {table.cnx.cnx_args['user']}\n"
+            f"Date: {now}\n"
+            f"Message: {args.message}\n\n"
+        )
 
 
 def manipulate(args):
@@ -193,7 +264,7 @@ def remove(args):
     table = _connect_table()
     table.load_table(args.name)
     if not args.yes:
-        ans = input(f"Do you really want to drop `{args.name}`? (y/n)")
+        ans = input(f"Do you really want to drop `{args.name}`? (y/n)\n")
         if ans == "y":
             table.remove()
             print(f"Drop `{args.name}`")
