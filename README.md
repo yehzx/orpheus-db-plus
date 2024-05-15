@@ -25,6 +25,7 @@ relational databases. We currently decide to use MySQL as the backend database.
 3. Run `orpheusplus config` again to configure the user information and change the default settings if needed. (Please make sure that the MySQL service is running.)
 
 ### Usage
+> If you encounter any errors, please run `orpheusplus remove -n TABLE_NAME`, `git pull` the latest update, and then try the operations again. If errors still occur, it is likely a bug.  
 
 1. Initialize a version table
     ```
@@ -85,7 +86,10 @@ relational databases. We currently decide to use MySQL as the backend database.
     │           106 │    32 │    10320 │
     ╘═══════════════╧═══════╧══════════╛
     ```
-
+6. Drop the version table
+    ```
+    orpheusplus remove -n new_table
+    ```
 
 
 **Available commands:**
