@@ -198,7 +198,7 @@ def log(args):
                 msg += f"{yellow}({cyan}HEAD{yellow}){off} "
             msg += commit["message"] + "\n"
         # Restrict the number of lines printed
-        print(msg[:100], end="")
+        print("\n".join(msg.split("\n")[:100]), end="")
     else:
         for commit in parsed_commits:
             msg += f"{yellow}commit {commit['version']:<4}{off}"
@@ -207,7 +207,7 @@ def log(args):
             msg += f"\nAuthor: {commit['author']}"
             msg += f"\nDate: {commit['date']}"
             msg += f"\nMessage: {commit['message']}\n\n"
-        print(msg[:200], end="")
+        print("\n".join(msg.split("\n")[:200]), end="")
 
 
 def _parse_commit(commit):
@@ -263,7 +263,7 @@ def manipulate(args):
 
 def remove(args):
     from orpheusplus import LOG_DIR
-    
+
     (LOG_DIR / args.name).unlink(missing_ok=True)
     table = _connect_table()
     table.load_table(args.name)

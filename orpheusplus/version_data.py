@@ -5,6 +5,7 @@ ORPHEUSDB: Bolt-on Versioning for Relational Databases
 (https://www.vldb.org/pvldb/vol10/p1130-huang.pdf)
 """
 import csv
+import sys
 from collections import OrderedDict
 
 from orpheusplus.mysql_manager import MySQLManager
@@ -148,7 +149,7 @@ class VersionData():
         rids = tuple(rid for rid in self.operation.add_rids)
         if not rids:
             print("No revision to the last version. Abort commit.")
-            return
+            sys.exit()
         stmt = (
             f"INSERT INTO {self.table_name}{self.data_table_suffix} "
             f"SELECT * FROM {self.table_name}{self.head_suffix} "
