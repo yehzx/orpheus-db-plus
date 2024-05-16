@@ -22,16 +22,16 @@ class SQLParser():
         with open(filepath, 'r') as f:
             sql = f.read()
         return self.parse(sql)
-
     
     def parse(self, sql):
+        sql = sqlparse.format(sql, strip_comments=True)
         self.stmts = list(sqlparse.parse(sql))
         self._parse_stmts()
         return self.parsed, self.operations
     
     def _parse_stmts(self):
         for stmt in self.stmts:
-            tokens = self._strip_whitespace(stmt.tokens)
+            tokens = self._strip_space_and_newline(stmt.tokens)
             parsed_tokens = self._handle_keywords(tokens)
             if tokens == parsed_tokens:
                 self.is_modified.append(False)
@@ -76,20 +76,14 @@ class SQLParser():
     @staticmethod
     def _check_syntax(tokens, vtable_indices, of_indices, version_indices):
         # Only "VTABLE one_table_name OF VERSION version" is valid
-        for vtable_idx in vtable_indices:
-            if tokens[vtable_idx + 2].match(sqlparse.tokens.Keyword, "OF"):
-                if not tokens[vtable_idx + 3].match(sqlparse.tokens.Keyword, "VERSION"):
-                    raise SyntaxError("The valid syntax is `VTABLE one_table_name OF VERSION version`")
-                if not tokens[vtable_idx + 4].ttype is sqlparse.tokens.Literal.Number.Integer:
-                    raise SyntaxError("Require a version number after `VERSION`")
-
-        # possible_version_idices = [idx+3 for idx in vtable_indices]
-        # for version_idx in version_indices:
-        #     if version_idx not in possible_version_idices:
-        #         raise SyntaxError("The valid syntax is `VTABLE one_table_name OF VERSION version`")
-        #     elif not tokens[version_idx + 1].ttype is sqlparse.tokens.Literal.Number.Integer:
-        #         raise SyntaxError("Require a version number after `VERSION`")
-    
+        for version_idx in version_indices:
+            if not tokens[version_idx - 1].match(sqlparse.tokens.Keyword, "OF"):
+                raise SyntaxError("The valid syntax is `VTABLE one_table_name OF VERSION version`")
+            if not tokens[version_idx + 1].ttype is sqlparse.tokens.Literal.Number.Integer:
+                raise SyntaxError("Require a version number after `VERSION`")
+            if not tokens[0].match(sqlparse.tokens.Keyword.DML, "SELECT"):
+                raise SyntaxError("Does not support changing data in a specific version.")
+                
     @staticmethod
     def _handle_version(tokens, indices):
         where_indices = SQLParser._get_where(tokens)
@@ -181,12 +175,11 @@ class SQLParser():
             if flat_tokens[-1].match(sqlparse.tokens.Punctuation, ";"):
                 flat_tokens.pop()
             flat_token_list.extend(flat_tokens)
-        flat_token_list = SQLParser._strip_whitespace(flat_token_list)
+        flat_token_list = SQLParser._strip_space_and_newline(flat_token_list)
         flat_token_list = list(filter(SQLParser._not_empty_identifier, flat_token_list))
         stmt = " ".join([token.value for token in flat_token_list]) + ";"
         return stmt
 
-
     @staticmethod
-    def _strip_whitespace(tokens):
-        return list(filter(lambda token: not token.match(sqlparse.tokens.Whitespace, " "), tokens))
+    def _strip_space_and_newline(tokens):
+        return list(filter(lambda token: not (token.match(sqlparse.tokens.Whitespace, " ") or token.match(sqlparse.tokens.Newline, "\n")), tokens))
