@@ -19,8 +19,7 @@ def test_mysql_connection_config():
     assert True
 
 
-@pytest.mark.skipif("not config.getoption('--connection')")
-def test_init_table(version_table):
+def test_c_init_table(version_table):
     args = parse_args(["init",
                        "-s", "./examples/sample_schema.csv",
                        "-n", version_table])

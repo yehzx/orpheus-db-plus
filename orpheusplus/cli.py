@@ -74,7 +74,8 @@ def setup_argparsers():
     update_parser.set_defaults(func=manipulate, op="update")
 
     run_parser = subparsers.add_parser("run", help="Run a SQL script")
-    run_parser.add_argument("-f", "--file", required=True, help="file path")
+    run_parser.add_argument("-i", "--input", required=True, help="input file path")
+    run_parser.add_argument("-o", "--output", help="output file path")
     run_parser.set_defaults(func=run) 
 
     return parser
@@ -261,6 +262,9 @@ def manipulate(args):
 
 
 def remove(args):
+    from orpheusplus import LOG_DIR
+    
+    (LOG_DIR / args.name).unlink(missing_ok=True)
     table = _connect_table()
     table.load_table(args.name)
     if not args.yes:
@@ -274,21 +278,21 @@ def remove(args):
         table.remove()
 
 
+
 def run(args):
     from orpheusplus.query_parser import SQLParser
 
     user = UserManager()
     mydb = MySQLManager(**user.info)
     parser = SQLParser()
-    stmts, operations = parser.parse_file(args.file)
+    stmts, operations = parser.parse_file(args.input)
     ori_stmts = parser.stmts
     # TODO: if the statements are modified, maybe let VersionData handle them.
     for ori_stmt, stmt, op in zip(ori_stmts, stmts, operations):
         result = mydb.execute(stmt)
-        if result:
-            print(ori_stmt)
-            _print_result(result, mydb)
-            print()
+        print(ori_stmt)
+        _print_result(result, mydb)
+        print()
 
 
 def _print_result(result, mydb):

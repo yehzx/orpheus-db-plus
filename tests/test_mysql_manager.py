@@ -22,7 +22,6 @@ def test_mysql_connection_database_not_exist():
                         database="XXXXXX")
 
 
-@pytest.mark.skipif("not config.getoption('--connection')")
-def test_execute_mysql_queries():
+def test_c_execute_mysql_queries():
     # TODO: Come up with serveral SQL queries to test this
     pass

@@ -54,7 +54,7 @@ relational databases. We currently decide to use MySQL as the backend database.
 5. Run an example script to get the data from the current version 
     ```
     # Current version: 1
-    orpheusplus run ./examples/sql_script_1.sql
+    orpheusplus run -i ./examples/sql_script_1.sql
 
     ╒═══════════════╤═══════╤══════════╕
     │   employee_id │   age │   salary │
@@ -68,7 +68,7 @@ relational databases. We currently decide to use MySQL as the backend database.
 
     # Check out to version 2
     orpheusplus checkout -n new_table -v 2
-    orpheusplus run ./examples/sql_script_1.sql
+    orpheusplus run -i ./examples/sql_script_1.sql
 
     ╒═══════════════╤═══════╤══════════╕
     │   employee_id │   age │   salary │
