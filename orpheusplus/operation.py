@@ -39,7 +39,7 @@ class Operation():
     
     def remove(self):
         # tablename_version
-        table = self.operation_path.stem.rsplit("_")[0]
+        table = self.operation_path.stem.rsplit("_", 1)[0]
         for operation_path in self.operation_path.parent.glob(f"{table}_[0-9]*"):
             operation_path.unlink()
     

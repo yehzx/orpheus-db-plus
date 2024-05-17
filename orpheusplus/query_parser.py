@@ -21,7 +21,7 @@ class SQLParser():
     def parse_file(self, filepath):
         with open(filepath, 'r') as f:
             sql = f.read()
-        return self.parse(sql)
+        self.parse(sql)
     
     def parse(self, sql):
         sql = sqlparse.format(sql, strip_comments=True)

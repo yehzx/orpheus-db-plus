@@ -74,7 +74,8 @@ def setup_argparsers():
     update_parser.set_defaults(func=manipulate, op="update")
 
     run_parser = subparsers.add_parser("run", help="Run a SQL script")
-    run_parser.add_argument("-i", "--input", required=True, help="input file path")
+    run_parser.add_argument("-f", "--file", help="script path")
+    run_parser.add_argument("-i", "--input", help="SQL statement")
     run_parser.add_argument("-o", "--output", help="output file path")
     run_parser.set_defaults(func=run) 
 
@@ -264,12 +265,12 @@ def manipulate(args):
 def remove(args):
     from orpheusplus import LOG_DIR
 
-    (LOG_DIR / args.name).unlink(missing_ok=True)
-    table = _connect_table()
-    table.load_table(args.name)
     if not args.yes:
         ans = input(f"Do you really want to drop `{args.name}`? (y/n)\n")
         if ans == "y":
+            (LOG_DIR / args.name).unlink(missing_ok=True)
+            table = _connect_table()
+            table.load_table(args.name)
             table.remove()
             print(f"Drop `{args.name}`")
         else:
@@ -282,29 +283,51 @@ def remove(args):
 def run(args):
     from orpheusplus.query_parser import SQLParser
 
+    def _write_csv(data, path):
+        import csv
+        with open(path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerows(data)
+        print(f"Save results to {path}")
+
+    def _handle_result(result, mydb):
+        field = [col[0] for col in mydb.cursor.description]
+        if field[0] == "rid":
+            field = field[1:]
+            data = [row[1:] for row in result]
+        return {"field": field, "data": data} 
+
+    def _print_result(data, field=None):
+        if field is None:
+            print(tabulate(data, tablefmt="fancy_grid")) 
+        else:
+            print(tabulate(data, headers=field, tablefmt="fancy_grid")) 
+
     table = _connect_table()
     mydb = table.cnx
     parser = SQLParser()
-    parser.parse_file(args.input)
-    # TODO: if the statements are modified, maybe let VersionData handle them.
+    if args.file is not None:
+        parser.parse_file(args.input)
+    elif args.input is not None:
+        parser.parse(args.input)
+    else:
+        raise Exception("No input provided.")
     # TODO: Refactor this block. `stmt` is either string or a dict here, make it consistent
     for is_modified, ori_stmt, stmt, op in zip(parser.is_modified, parser.stmts, parser.parsed, parser.operations):
         if op == "select" or not is_modified:
             result = mydb.execute(stmt)
-            print(ori_stmt)
-            _print_result(result, mydb)
-            print()
+            result = _handle_result(result, mydb)
+            if args.output is not None:
+                output = result["data"]
+                output.insert(0, result["field"])
+                _write_csv(output, args.output)
+            else:
+                print(ori_stmt)
+                _print_result(result["data"], result["field"])
+                print()
         elif op in ("insert", "delete", "update"):
             table.load_table(stmt["table_name"])
             table.from_parsed_data(op, stmt["attributes"])
-
-
-def _print_result(result, mydb):
-    field = [col[0] for col in mydb.cursor.description]
-    if field[0] == "rid":
-        field = field[1:]
-        result = [row[1:] for row in result]
-    print(tabulate(result, headers=field, tablefmt="fancy_grid")) 
 
 
 if __name__ == "__main__":

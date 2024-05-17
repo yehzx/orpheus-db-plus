@@ -11,6 +11,7 @@ from collections import OrderedDict
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.operation import Operation
 from orpheusplus.version_graph import VersionGraph
+import mysql
 
 DATA_TABLE_SUFFIX = "_orpheusplus"
 HEAD_SUFFIX = "_orpheusplus_head"
@@ -26,9 +27,9 @@ class VersionData():
         self.version_graph = None
         self.operation = None
 
-    def init_table(self, table_name, table_structure):
+    def init_table(self, table_name, table_structure_path):
         self.table_name = table_name
-        table_structure = self._parse_csv_structure(table_structure)
+        table_structure = self._parse_csv_structure(table_structure_path)
 
         # Initialize data table
         # rid: as an index for each relation
@@ -268,8 +269,7 @@ class VersionData():
         data = []
         with open(filepath, newline="") as f:
             reader = csv.reader(f)
-            for row in reader:
-                data.append(row)
+            data = list(reader)
         return data    
 
     @staticmethod 

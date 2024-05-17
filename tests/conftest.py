@@ -1,7 +1,9 @@
 import pytest
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.user_manager import UserManager
-
+from orpheusplus.version_data import VersionData
+import tempfile
+from pathlib import Path
 
 def pytest_addoption(parser):
     parser.addoption("--connection", action="store_true",
@@ -25,3 +27,9 @@ def cnx():
         del mydb
     except:
         yield None
+
+
+@pytest.fixture(scope="session")
+def tempdir():
+    with tempfile.TemporaryDirectory(dir="./tests") as dir:
+        yield Path(dir)
