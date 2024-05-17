@@ -22,6 +22,7 @@ class VersionData():
     def __init__(self, cnx: MySQLManager):
         self.cnx = cnx
         self.table_name = None
+        self.db_name = cnx.cnx_args["database"]
         self.table_structure = None
         self.version_graph = None
         self.operation = None
@@ -52,19 +53,19 @@ class VersionData():
 
     def _create_version_graph(self):
         self.version_graph = VersionGraph(self.cnx)
-        self.version_graph.init_version_graph(self.table_name)
+        self.version_graph.init_version_graph(self.db_name, self.table_name)
     
     def _create_operation(self):
         self.operation = Operation()
-        self.operation.init_operation(self.table_name, self.get_current_version())
+        self.operation.init_operation(self.db_name, self.table_name, self.get_current_version())
     
     def load_table(self, table_name):
         self.table_name = table_name
         self.table_structure = self._get_table_types()        
         self.version_graph = VersionGraph(self.cnx)
-        self.version_graph.load_version_graph(table_name)
+        self.version_graph.load_version_graph(self.db_name, table_name)
         self.operation = Operation()
-        self.operation.load_operation(self.table_name, self.get_current_version())
+        self.operation.load_operation(self.db_name, table_name, self.get_current_version())
     
     def checkout(self, version):
         if version == self.get_current_version():

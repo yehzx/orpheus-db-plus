@@ -11,15 +11,18 @@ class VersionGraph():
     def __init__(self, cnx: MySQLManager):
         self.cnx = cnx
         self.table_name = None
+        self.db_name = None
         self.version_table = None
         self.version_graph_path = None
         self.G = None
         self.head = None
         self.version_count = None
 
-    def init_version_graph(self, table_name):
+    def init_version_graph(self, db_name, table_name):
         self.table_name = table_name
-        self.version_graph_path = VERSIONGRAPH_DIR / f"{table_name}"
+        self.db_name = db_name
+        self.version_graph_path = VERSIONGRAPH_DIR / f"{db_name}/{table_name}"
+        self.version_graph_path.parent.mkdir(parents=True, exist_ok=True)
         if self.version_graph_path.is_file():
             print(f"Version graph exists. Overwrite {self.version_graph_path}")
 
@@ -39,9 +42,10 @@ class VersionGraph():
         self.version_table.init_version_table(self.table_name)
 
 
-    def load_version_graph(self, table_name):
+    def load_version_graph(self, db_name, table_name):
         self.table_name = table_name
-        self.version_graph_path = VERSIONGRAPH_DIR / f"{table_name}"
+        self.db_name = db_name
+        self.version_graph_path = VERSIONGRAPH_DIR / f"{db_name}/{table_name}"
         try:
             with open(self.version_graph_path, "rb") as f:
                 self.G = pickle.load(f)

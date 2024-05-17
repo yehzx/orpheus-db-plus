@@ -11,13 +11,14 @@ class Operation():
         self.history = []
         self.operation_path = None
     
-    def init_operation(self, table_name, version):
-        self.operation_path = OPERATION_DIR / f"{table_name}_{version}"
+    def init_operation(self, db_name, table_name, version):
+        self.operation_path = OPERATION_DIR / f"{db_name}/{table_name}_{version}"
+        self.operation_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.operation_path, "wb") as f:
             pickle.dump(self, f)
     
-    def load_operation(self, table_name, version):
-        self.operation_path = OPERATION_DIR / f"{table_name}_{version}"
+    def load_operation(self, db_name, table_name, version):
+        self.operation_path = OPERATION_DIR / f"{db_name}/{table_name}_{version}"
         with open(self.operation_path, "rb") as f:
             self.__dict__.update(pickle.load(f).__dict__)
     

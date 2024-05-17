@@ -162,9 +162,12 @@ def dbconfig(args):
 
 def ls(args):
     from orpheusplus import VERSIONGRAPH_DIR
+    from orpheusplus.user_manager import UserManager
 
+    user = UserManager()
+    db_name = user.info["database"]
     # The files in VERSIONGRAPH_DIR are all version tables.
-    tables = list(VERSIONGRAPH_DIR.glob("*"))
+    tables = list((VERSIONGRAPH_DIR / db_name).glob("*"))
     if len(tables) == 0:
         print("No version table found.")
     else:
@@ -182,9 +185,10 @@ def log(args):
 
     table = _connect_table()
     table.load_table(args.name)
+    db_name = table.cnx.cnx_args["database"]
 
     parsed_commits = []
-    with open(LOG_DIR / f"{args.name}") as f:
+    with open(LOG_DIR / f"{db_name}/{args.name}") as f:
         commits = f.read().split("\n\n")
         for commit in reversed(commits):
             if not commit:
@@ -246,8 +250,11 @@ def commit(args):
     table = _connect_table()
     table.load_table(args.name)
     table.commit(args.message, now)
+    db_name = table.cnx.cnx_args["database"]
+    log_path = LOG_DIR / f"{db_name}/{args.name}"
+    log_path.parent.mkdir(exist_ok=True)
 
-    with open(LOG_DIR / f"{args.name}", "a") as f:
+    with open(log_path, "a") as f:
         f.write(
             f"commit {table.version_graph.head}\n"
             f"Author: {table.cnx.cnx_args['user']}\n"
