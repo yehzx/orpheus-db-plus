@@ -282,17 +282,21 @@ def remove(args):
 def run(args):
     from orpheusplus.query_parser import SQLParser
 
-    user = UserManager()
-    mydb = MySQLManager(**user.info)
+    table = _connect_table()
+    mydb = table.cnx
     parser = SQLParser()
-    stmts, operations = parser.parse_file(args.input)
-    ori_stmts = parser.stmts
+    parser.parse_file(args.input)
     # TODO: if the statements are modified, maybe let VersionData handle them.
-    for ori_stmt, stmt, op in zip(ori_stmts, stmts, operations):
-        result = mydb.execute(stmt)
-        print(ori_stmt)
-        _print_result(result, mydb)
-        print()
+    # TODO: Refactor this block. `stmt` is either string or a dict here, make it consistent
+    for is_modified, ori_stmt, stmt, op in zip(parser.is_modified, parser.stmts, parser.parsed, parser.operations):
+        if op == "select" or not is_modified:
+            result = mydb.execute(stmt)
+            print(ori_stmt)
+            _print_result(result, mydb)
+            print()
+        elif op in ("insert", "delete", "update"):
+            table.load_table(stmt["table_name"])
+            table.from_parsed_data(op, stmt["attributes"])
 
 
 def _print_result(result, mydb):

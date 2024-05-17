@@ -53,6 +53,12 @@ class Operation():
         for start_rid, num_rids in rids:
             self.stmts.append(("delete", (start_rid, num_rids), now))
         self.save_operation()
+    
+    def update(self):
+        insert = self.stmts.pop()
+        delete = self.stmts.pop()
+        self.stmts.append(("update", (delete, insert), delete[2]))
+        self.save_operation()
 
     def clear(self):
         self.stmts = []
@@ -88,15 +94,22 @@ class Operation():
         while self.stmts:
             stmt = self.stmts.pop()
             self.history.insert(0, stmt)
-            op, args, timestamp = stmt
-            if op == "insert":
-                start_rid, num_rids = args
-                self.add_rids.extend(range(start_rid, start_rid + num_rids))
-            elif op == "delete":
-                start_rid, num_rids = args
-                self.remove_rids.extend(range(start_rid, start_rid + num_rids))
+            self._parse_stmt(stmt)
         self._remove_overlapping_rids()
         self.save_operation()
+    
+    def _parse_stmt(self, stmt):
+        op, args, timestamp = stmt
+        if op == "insert":
+            start_rid, num_rids = args
+            self.add_rids.extend(range(start_rid, start_rid + num_rids))
+        elif op == "delete":
+            start_rid, num_rids = args
+            self.remove_rids.extend(range(start_rid, start_rid + num_rids))
+        elif op == "update":
+            delete, insert = args
+            self._parse_stmt(delete)
+            self._parse_stmt(insert)
     
     def _remove_overlapping_rids(self):
         # Didn't use set because same entries can be inserted and deleted and then inserted.

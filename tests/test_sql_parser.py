@@ -7,7 +7,7 @@ from orpheusplus.version_table import VERSION_TABLE_SUFFIX
 
 def test_strip_whitespace():
     stmt = sqlparse.parse("SELECT   * FROM foo")
-    result = SQLParser._strip_space_and_newline(stmt[0])
+    result = SQLParser._strip_unwanted_tokens(stmt[0])
     result = [token.value for token in result]
     expected = sqlparse.parse("SELECT * FROM foo")[0]
     expected = [expected[i].value for i in [0, 2, 4, 6]]
@@ -19,14 +19,20 @@ def test_strip_whitespace():
         "SELECT * FROM VTABLE foo VERSION 1",
         "SELECT * FROM VTABLE foo VERSION OF 1"
         "INSERT * INTO VTABLE foo",
-        "INSERT * INTO VTABLE foo OF VERSION 1",
+        "INSERT INTO VTABLE foo OF VERSION 1",
+        "INSERT INTO VTABLE foo, bar VALUES (1, 2, 3)",
+        "DELETE VTABLE foo",
+        "DELETE FROM VTABLE foo, bar",
+        "DELETE VTABLE foo OF VERSION 1",
+        "UPDATE VTABLE foo",
+        "UPDATE VTABLE foo OF VERSION 1",
+        "UPDATE VTABLE foo, bar SET baz = 1",
     ])
 def test_raise_syntax_error(input):
     with pytest.raises(SyntaxError):
         stmt = sqlparse.parse(input)
-        tokens = SQLParser._strip_space_and_newline(stmt[0])
+        tokens = SQLParser._strip_unwanted_tokens(stmt[0])
         tokens = SQLParser._handle_keywords(tokens)
-        reuslt = SQLParser._rebuild_stmt(tokens)
 
 
 @pytest.mark.parametrize("input,expected",
@@ -52,11 +58,38 @@ def test_raise_syntax_error(input):
 )
 def test_handle_vtable(input, expected):
     stmt = sqlparse.parse(input)
-    tokens = SQLParser._strip_space_and_newline(stmt[0])
+    tokens = SQLParser._strip_unwanted_tokens(stmt[0])
     tokens = SQLParser._handle_keywords(tokens)
     result = SQLParser._rebuild_stmt(tokens)
     assert result == expected, f"result: {result}\nexpected: {expected}"
 
-    
-    
-    
+
+@pytest.mark.parametrize("input,expected",
+    [
+        ("SELECT * FROM foo WHERE bar = 1;", [4]),
+        ("SELECT * FROM VTABLE foo WHERE bar IN (SELECT bar FROM baz WHERE qua = 1);", [5]),
+    ]
+)
+def test_get_where(input, expected):
+    stmt = sqlparse.parse(input)
+    tokens = SQLParser._strip_unwanted_tokens(stmt[0])
+    result = SQLParser._get_where(tokens)
+    assert result == expected, f"result: {result}\nexpected: {expected}"    
+
+
+@pytest.mark.parametrize("input,expected",
+    [
+        ("INSERT INTO VTABLE foo VALUES (1, 2);", {"table_name": "foo", "operation": "insert", "attributes": {"columns": None, "data": [["1", "2"]]}}),
+        ("INSERT INTO VTABLE foo VALUES (1, 2), (3, 4);", {"table_name": "foo", "operation": "insert", "attributes": {"columns": None, "data": [["1", "2"], ["3", "4"]]}}),
+        ("INSERT INTO VTABLE foo (bar, baz) VALUES (1, 2), (3, 4);", {"table_name": "foo", "operation": "insert", "attributes": {"columns": ["bar", "baz"], "data": [["1", "2"], ["3", "4"]]}}),
+        ("UPDATE VTABLE foo SET bar = 1, baz=2;", {"table_name": "foo", "operation": "update", "attributes": {"set": {"bar": "1", "baz": "2"}, "where": ""}}),
+        ("UPDATE VTABLE foo SET bar = 1 WHERE baz = 2;", {"table_name": "foo", "operation": "update", "attributes": {"set": {"bar": "1"}, "where": "WHERE baz = 2;"}}),
+        ("DELETE FROM VTABLE foo;", {"table_name": "foo", "operation": "delete", "attributes": {"where": ""}}),
+        ("DELETE FROM VTABLE foo WHERE bar = 1;", {"table_name": "foo", "operation": "delete", "attributes": {"where": "WHERE bar = 1;"}}),
+    ]
+)
+def test_parse_for_versiondata(input, expected):
+    stmt = sqlparse.parse(input)
+    tokens = SQLParser._strip_unwanted_tokens(stmt[0])
+    result = SQLParser._parse_for_versiondata(tokens)
+    assert result == expected, f"result: {result}\nexpected: {expected}"
