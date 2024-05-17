@@ -58,10 +58,27 @@ def test_c_insert(data_path, table: VersionData, expected_data, tempdir):
     assert data == expected_data[0], f"result: {data}\nexpected: {expected_data[0]}"
 
 
+def test_c_insert_delete(data_path, table: VersionData, expected_data, tempdir):
+    table.from_file("insert", data_path[0])
+    table.from_file("delete", data_path[0])
+    _check_data(tempdir)
+    data = _read_result(tempdir)
+    assert data == [expected_data[0][0]], f"result: {data}\nexpected: {[expected_data[0][0]]}"
+
+
+def test_c_insert_delete(data_path, table: VersionData, expected_data, tempdir):
+    table.from_file("insert", data_path[0])
+    table.from_file("update", [data_path[0], data_path[1]])
+    _check_data(tempdir)
+    data = _read_result(tempdir)
+    assert data == expected_data[1], f"result: {data}\nexpected: {expected_data[1]}"
+
+
 def test_parse_csv_structure():
     result = VersionData._parse_csv_structure("./examples/sample_schema.csv")
     expected = "employee_id int, age int, salary int"
     assert result == expected, f"result: {result}\nexpected: {expected}"
+
 
 def test_parse_csv_data():
     result = VersionData._parse_csv_data("./examples/data_1.csv")
