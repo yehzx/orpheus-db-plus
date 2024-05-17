@@ -207,7 +207,7 @@ class VersionData():
         )
         self.cnx.execute(stmt)
         self.cnx.commit()
-        self.version_graph.add_version(self.operation, commit_info)
+        self.version_graph.add_version(self.operation, *commit_info)
         self._create_operation()
     
     def remove(self):

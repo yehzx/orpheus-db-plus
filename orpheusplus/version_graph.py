@@ -94,7 +94,7 @@ class VersionGraph():
                                        version=self.head,
                                        parent=old_head)
         
-        operations.commit(self.head, commit_info)
+        operations.commit(self.head, *commit_info)
         self._save_graph()
         
 

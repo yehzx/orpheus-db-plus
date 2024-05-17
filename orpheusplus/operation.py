@@ -31,10 +31,11 @@ class Operation():
     def commit(self, child, *commit_info):
         # If commit message has more than 72 characters, truncate it.
         msg = commit_info[0]
+        now = commit_info[1]
         msg = msg[:72]
         self.add_rids = []
         self.remove_rids = []
-        self.history.append(("commit", commit_info, datetime.now()))
+        self.history.append(("commit", (child, msg), now))
         self.save_operation()
     
     def remove(self):
