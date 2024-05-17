@@ -11,7 +11,6 @@ from collections import OrderedDict
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.operation import Operation
 from orpheusplus.version_graph import VersionGraph
-import mysql
 
 DATA_TABLE_SUFFIX = "_orpheusplus"
 HEAD_SUFFIX = "_orpheusplus_head"
@@ -124,7 +123,7 @@ class VersionData():
         self.cnx.commit()
         self.operation.insert(start_rid=max_rid + 1, num_rids=len(data))
     
-    def delete(self, data):
+    def delete(self, data, update=False):
         if len(data) == 0:
             return            
         cols = list(self.table_structure.keys())
@@ -137,6 +136,16 @@ class VersionData():
         result = self.cnx.execute(stmt)
         rids = [each[0] for each in result]
 
+        # Behavior of `Update`
+        # Duplicated entries will be completely removed but new entries will be added uniquely.
+        if update:
+            if len(data) != len(rids):
+                print("Duplicated entries detected. After `UPDATE`, new entries will be unique but not duplicated.")
+                ans = input("Proceed to update? (y/n)\n")
+                if ans != "y":
+                    print("Operation cancelled.")
+                    sys.exit()
+            
         stmt = (
             f"DELETE FROM {self.table_name}{self.head_suffix} "
             f"WHERE ({', '.join(cols)}) IN {data_stmt}"
@@ -169,7 +178,7 @@ class VersionData():
     def update(self, old_data, new_data):
         if len(old_data) != len(new_data) or len(old_data) == 0:
             return
-        self.delete(old_data)
+        self.delete(old_data, update=True)
         self.insert(new_data)
         self.operation.update()
     
