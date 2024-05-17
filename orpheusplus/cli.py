@@ -2,13 +2,6 @@ import argparse
 import re
 import sys
 
-from tabulate import tabulate
-
-from orpheusplus.exceptions import MySQLConnectionError
-from orpheusplus.mysql_manager import MySQLManager
-from orpheusplus.user_manager import UserManager
-from orpheusplus.version_data import VersionData
-
 
 def main():
     args = parse_args(sys.argv[1:])
@@ -87,7 +80,11 @@ def default_handler():
     print("Use -h or --help for more information.")
 
 
-def _connect_table() -> VersionData:
+def _connect_table():
+    from orpheusplus.mysql_manager import MySQLManager
+    from orpheusplus.user_manager import UserManager
+    from orpheusplus.version_data import VersionData
+
     user = UserManager()
     mydb = MySQLManager(**user.info)
     table = VersionData(cnx=mydb)
@@ -99,6 +96,9 @@ def dbconfig(args):
     import yaml
 
     from orpheusplus import DEFAULT_DIR, ORPHEUSPLUS_CONFIG
+    from orpheusplus.exceptions import MySQLConnectionError
+    from orpheusplus.mysql_manager import MySQLManager
+    from orpheusplus.user_manager import UserManager
 
     host = ORPHEUSPLUS_CONFIG["host"]
     port = ORPHEUSPLUS_CONFIG["port"]
@@ -281,6 +281,8 @@ def remove(args):
 
 
 def run(args):
+    from tabulate import tabulate
+
     from orpheusplus.query_parser import SQLParser
 
     def _write_csv(data, path):
