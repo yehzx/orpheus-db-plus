@@ -35,10 +35,11 @@ def setup_argparsers():
     log_parser.add_argument("--oneline", action="store_true", help="print oneline log")
     log_parser.set_defaults(func=log)
 
-    remove_parser = subparsers.add_parser("remove", help="Drop a version table")
-    remove_parser.add_argument("-n", "--name", required=True, help="table name")
-    remove_parser.add_argument("-y", "--yes", action="store_true")
-    remove_parser.set_defaults(func=remove)
+    drop_parser = subparsers.add_parser("drop", help="Drop a version table")
+    drop_parser.add_argument("-n", "--name", required=True, help="table name")
+    drop_parser.add_argument("--all", action="store_true",
+                             help="don't keep the non-version-controlled table")
+    drop_parser.set_defaults(func=drop)
 
     checkout_parser = subparsers.add_parser("checkout", help="Checkout a version")
     checkout_parser.add_argument("-n", "--name", required=True, help="table name")
@@ -269,21 +270,22 @@ def manipulate(args):
     table.from_file(args.op, args.data)
 
 
-def remove(args):
+def drop(args):
     from orpheusplus import LOG_DIR
 
-    if not args.yes:
-        ans = input(f"Do you really want to drop `{args.name}`? (y/n)\n")
-        if ans == "y":
-            (LOG_DIR / args.name).unlink(missing_ok=True)
-            table = _connect_table()
-            table.load_table(args.name)
+    ans = input(f"Do you really want to drop `{args.name}`? (y/n)\n")
+    if ans == "y":
+        (LOG_DIR / args.name).unlink(missing_ok=True)
+        table = _connect_table()
+        table.load_table(args.name)
+        if args.all:
             table.remove()
             print(f"Drop `{args.name}`")
         else:
-            print(f"Keep `{args.name}`")
+            table.remove(keep_current=True)
+            print(f"Drop version control to `{args.name}`. Fall back to normal table.")
     else:
-        table.remove()
+        print(f"Keep `{args.name}`")
 
 
 

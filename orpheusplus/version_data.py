@@ -220,11 +220,14 @@ class VersionData():
         self.version_graph.add_version(self.operation, *commit_info)
         self._create_operation()
     
-    def remove(self):
+    def remove(self, keep_current=False):
         self.version_graph.remove()
         self.operation.remove()
         self.cnx.execute(f"DROP TABLE {self.table_name}{self.data_table_suffix}")
-        self.cnx.execute(f"DROP TABLE {self.table_name}{self.head_suffix}")
+        if keep_current:
+            self.cnx.execute(f"RENAME TABLE {self.table_name}{self.head_suffix} TO {self.table_name}")
+        else:
+            self.cnx.execute(f"DROP TABLE {self.table_name}{self.head_suffix}")
 
     def get_current_version(self):
         return self.version_graph.head
