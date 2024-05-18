@@ -2,6 +2,7 @@ import pickle
 from datetime import datetime
 from orpheusplus import OPERATION_DIR
 from collections import Counter
+from contextlib import contextmanager
 
 class Operation():
     def __init__(self):
@@ -69,7 +70,15 @@ class Operation():
         self.save_operation()
     
     def is_empty(self):
-        return not (self.stmts or self.add_rids or self.remove_rids)
+        with self._dry_parse():
+            if not(self.add_rids or self.remove_rids):
+                empty = True
+            else:
+                empty = False
+        # If empty, consume all stmts and save
+        if empty:
+            self.parse()
+        return empty
 
     @staticmethod 
     def _parse_rids(rids):
@@ -99,6 +108,17 @@ class Operation():
             self._parse_stmt(stmt)
         self._remove_overlapping_rids()
         self.save_operation()
+    
+    @contextmanager
+    def _dry_parse(self):
+        add_rids = self.add_rids
+        remove_rids = self.remove_rids
+        for stmt in self.stmts:
+            self._parse_stmt(stmt)
+        self._remove_overlapping_rids()
+        yield None
+        self.add_rids = add_rids
+        self.remove_rids = remove_rids
     
     def _parse_stmt(self, stmt):
         op, args, timestamp = stmt
