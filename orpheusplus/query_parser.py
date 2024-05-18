@@ -274,14 +274,6 @@ class SQLParser():
                 indices.append(idx)
         return  indices
 
-    @staticmethod 
-    def _get_token(tokens, ttype):
-        indices = []
-        for token in tokens:
-            if token.ttype is ttype:
-                indices.append(token)
-        return indices
-    
     @staticmethod
     def _get_operation_type(tokens):
         return tokens[0].value.lower()

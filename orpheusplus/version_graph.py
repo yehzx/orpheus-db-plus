@@ -79,7 +79,7 @@ class VersionGraph():
         self.version_table = VersionTable(self.cnx)
         self.version_table.load_version_table(self.table_name)
 
-    def add_version(self, operations: Operation, *commit_info):
+    def add_version(self, operations: Operation, **commit_info):
         num_rids, overlap = self._get_num_rids_and_overlap(self.head, operations)
 
         old_head = self.head
@@ -98,7 +98,7 @@ class VersionGraph():
                                        version=self.head,
                                        parent=old_head)
         
-        operations.commit(self.head, *commit_info)
+        operations.commit(self.head, **commit_info)
         self._save_graph()
         
 
@@ -118,4 +118,8 @@ class VersionGraph():
     
     def remove(self):
         self.version_table.delete()
-        os.remove(self.version_graph_path)
+        self.version_graph_path.unlink()
+        try:
+            self.version_graph_path.parent.rmdir()
+        except OSError:
+            pass

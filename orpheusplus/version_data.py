@@ -8,6 +8,8 @@ import csv
 import sys
 from collections import OrderedDict
 
+from orpheusplus.utils import parse_commit
+from orpheusplus import LOG_DIR
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.operation import Operation
 from orpheusplus.version_graph import VersionGraph
@@ -58,7 +60,30 @@ class VersionData():
     def _create_operation(self):
         self.operation = Operation()
         self.operation.init_operation(self.db_name, self.table_name, self.get_current_version())
-    
+
+    def _save_log(self, **commit_info):
+        log_path = LOG_DIR / f"{self.db_name}/{self.table_name}"
+        log_path.parent.mkdir(exist_ok=True)
+
+        with open(log_path, "a") as f:
+            f.write(
+                f"commit {self.version_graph.head}\n"
+                f"Author: {self.cnx.cnx_args['user']}\n"
+                f"Date: {commit_info['now']}\n"
+                f"Message: {commit_info['msg']}\n\n"
+            )
+
+    def _remove_log(self):
+        log_path = LOG_DIR / f"{self.db_name}/{self.table_name}"
+        try:
+            log_path.unlink()
+        except FileNotFoundError:
+            pass
+        try:
+            log_path.parent.rmdir()
+        except OSError:
+            pass
+
     def load_table(self, table_name):
         self.table_name = table_name
         self.table_structure = self._get_table_types()        
@@ -202,7 +227,7 @@ class VersionData():
                     row[idx] = value
         return data
     
-    def commit(self, *commit_info):
+    def commit(self, **commit_info):
         self.operation.parse()
         cols = list(self.table_structure.keys())
         cols.remove("rid")
@@ -219,17 +244,31 @@ class VersionData():
             )
             self.cnx.execute(stmt)
             self.cnx.commit()
-        self.version_graph.add_version(self.operation, *commit_info)
+        self.version_graph.add_version(self.operation, **commit_info)
         self._create_operation()
+        self._save_log(**commit_info)
     
     def remove(self, keep_current=False):
         self.version_graph.remove()
         self.operation.remove()
+        self._remove_log()
         self.cnx.execute(f"DROP TABLE {self.table_name}{self.data_table_suffix}")
         if keep_current:
             self.cnx.execute(f"RENAME TABLE {self.table_name}{self.head_suffix} TO {self.table_name}")
         else:
             self.cnx.execute(f"DROP TABLE {self.table_name}{self.head_suffix}")
+
+
+    def parse_log(self):
+        parsed_commits = []
+        with open(LOG_DIR / f"{self.db_name}/{self.table_name}") as f:
+            commits = f.read().split("\n\n")
+            for commit in reversed(commits):
+                if not commit:
+                    continue
+                parsed_commits.append(parse_commit(commit))
+        return parsed_commits
+
 
     def get_current_version(self):
         return self.version_graph.head

@@ -13,15 +13,6 @@ def test_mysql_connection_error():
                             database="foobar")
 
 
-@pytest.mark.skipif("not config.getoption('--connection') or config.getoption('-s') == 'fd'")
-def test_mysql_connection_database_not_exist():
-    # Should ask user to create a database
+def test_c_mysql_connection():
     user = UserManager()
-    mydb = MySQLManager(user=user.info["user"],
-                        passwd=user.info["passwd"],
-                        database="XXXXXX")
-
-
-def test_c_execute_mysql_queries():
-    # TODO: Come up with serveral SQL queries to test this
-    pass
+    mydb = MySQLManager(**user.info)

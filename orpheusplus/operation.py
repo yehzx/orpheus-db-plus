@@ -30,10 +30,10 @@ class Operation():
         except:
             raise Exception(f"{self.operation_path} not properly initialized.")
     
-    def commit(self, child, *commit_info):
+    def commit(self, child, **commit_info):
         # If commit message has more than 72 characters, truncate it.
-        msg = commit_info[0]
-        now = commit_info[1]
+        msg = commit_info["msg"]
+        now = commit_info["now"]
         msg = msg[:72]
         self.add_rids = []
         self.remove_rids = []
@@ -45,6 +45,10 @@ class Operation():
         table = self.operation_path.stem.rsplit("_", 1)[0]
         for operation_path in self.operation_path.parent.glob(f"{table}_[0-9]*"):
             operation_path.unlink()
+        try:
+            operation_path.parent.rmdir()
+        except OSError:
+            pass
     
     def insert(self, start_rid, num_rids):
         self.stmts.append(("insert", (start_rid, num_rids), datetime.now()))

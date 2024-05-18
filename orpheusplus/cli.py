@@ -51,6 +51,12 @@ def setup_argparsers():
     commit_parser.add_argument("-m", "--message", help="commit message")
     commit_parser.set_defaults(func=commit)
 
+    merge_parser = subparsers.add_parser("merge", help="Join two versions")
+    merge_parser.add_argument("-n", "--name", required=True, help="table name")
+    merge_parser.add_argument("-v", "--version", required=True,
+                              help="the version to be merged into the current version")
+    merge_parser.set_defaults(func=merge)
+
     insert_parser = subparsers.add_parser("insert", help="Insert data from file")
     insert_parser.add_argument("-n", "--name", required=True, help="table name")
     insert_parser.add_argument("-d", "--data", required=True)
@@ -178,23 +184,13 @@ def ls(args):
 
 
 def log(args):
-    from orpheusplus import LOG_DIR
-
     yellow = "\033[93m"
     cyan = "\033[96m"
     off = "\033[00m"
 
     table = _connect_table()
     table.load_table(args.name)
-    db_name = table.cnx.cnx_args["database"]
-
-    parsed_commits = []
-    with open(LOG_DIR / f"{db_name}/{args.name}") as f:
-        commits = f.read().split("\n\n")
-        for commit in reversed(commits):
-            if not commit:
-                continue
-            parsed_commits.append(_parse_commit(commit))
+    parsed_commits = table.parse_log()
 
     msg = "" 
     if args.oneline:
@@ -203,8 +199,6 @@ def log(args):
             if commit["version"] == str(table.version_graph.head):
                 msg += f"{yellow}({cyan}HEAD{yellow}){off} "
             msg += commit["message"] + "\n"
-        # Restrict the number of lines printed
-        print("\n".join(msg.split("\n")[:100]), end="")
     else:
         for commit in parsed_commits:
             msg += f"{yellow}commit {commit['version']:<4}{off}"
@@ -213,17 +207,6 @@ def log(args):
             msg += f"\nAuthor: {commit['author']}"
             msg += f"\nDate: {commit['date']}"
             msg += f"\nMessage: {commit['message']}\n\n"
-        print("\n".join(msg.split("\n")[:200]), end="")
-
-
-def _parse_commit(commit):
-    lines = commit.split("\n")
-    version = re.search(r"^commit (\d+)", lines[0]).group(1)
-    author = re.search(r"^Author: (.*)", lines[1]).group(1)
-    date = re.search(r"^Date: (.*)", lines[2]).group(1)
-    message = re.search(r"^Message: (.*)", lines[3]).group(1)
-    return {"version": version, "author": author, "date": date,
-            "message": message}
 
 
 def init_table(args):
@@ -244,24 +227,21 @@ def checkout(args):
 def commit(args):
     from datetime import datetime
 
-    from orpheusplus import LOG_DIR
-
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     table = _connect_table()
     table.load_table(args.name)
-    table.commit(args.message, now)
-    db_name = table.cnx.cnx_args["database"]
-    log_path = LOG_DIR / f"{db_name}/{args.name}"
-    log_path.parent.mkdir(exist_ok=True)
+    table.commit(msg=args.message, now=now)
 
-    with open(log_path, "a") as f:
-        f.write(
-            f"commit {table.version_graph.head}\n"
-            f"Author: {table.cnx.cnx_args['user']}\n"
-            f"Date: {now}\n"
-            f"Message: {args.message}\n\n"
-        )
+
+def merge(args):
+    table = _connect_table()
+    table.load_table(args.name)
+    if not table.operation.is_empty():
+        print("Please commit before merge.")
+        return
+    table.checkout()
+    table.merge(args.version)
 
 
 def manipulate(args):
