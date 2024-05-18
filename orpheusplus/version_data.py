@@ -206,17 +206,19 @@ class VersionData():
         self.operation.parse()
         cols = list(self.table_structure.keys())
         cols.remove("rid")
-        rids = tuple(rid for rid in self.operation.add_rids)
-        if not rids:
+        add_rids = tuple(rid for rid in self.operation.add_rids)
+        remove_rids = tuple(rid for rid in self.operation.remove_rids)
+        if not (add_rids or remove_rids):
             print("No revision to the last version. Abort commit.")
             sys.exit()
-        stmt = (
-            f"INSERT INTO {self.table_name}{self.data_table_suffix} "
-            f"SELECT * FROM {self.table_name}{self.head_suffix} "
-            f"WHERE rid IN {rids}"
-        )
-        self.cnx.execute(stmt)
-        self.cnx.commit()
+        if add_rids:
+            stmt = (
+                f"INSERT INTO {self.table_name}{self.data_table_suffix} "
+                f"SELECT * FROM {self.table_name}{self.head_suffix} "
+                f"WHERE rid IN {add_rids}"
+            )
+            self.cnx.execute(stmt)
+            self.cnx.commit()
         self.version_graph.add_version(self.operation, *commit_info)
         self._create_operation()
     
