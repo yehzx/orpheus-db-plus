@@ -221,7 +221,7 @@ def checkout(args):
     if args.version == "head":
         version = table.get_current_version()
     else:
-        version = args.version
+        version = int(args.version)
     table.checkout(version)
 
 
