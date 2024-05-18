@@ -1,5 +1,6 @@
 import re
-
+import csv
+from collections import OrderedDict
 
 def parse_commit(commit):
     lines = commit.split("\n")
@@ -9,3 +10,48 @@ def parse_commit(commit):
     message = re.search(r"^Message: (.*)", lines[3]).group(1)
     return {"version": version, "author": author, "date": date,
             "message": message}
+
+def parse_table_types(schema):
+    type_dict = OrderedDict()
+    for col in schema:
+        type_dict[col[0]] = col[1].decode()
+    return type_dict
+
+def parse_csv_structure(filepath):
+    stmt = ""
+    with open(filepath, newline="") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            stmt += " ".join(row)
+            stmt += ", "
+        stmt = stmt.rstrip(", ")
+    return stmt 
+
+def parse_csv_data(filepath):
+    data = []
+    with open(filepath, newline="") as f:
+        reader = csv.reader(f)
+        data = list(reader)
+    return data    
+
+
+def match_column_order(table_cols, cols):
+    order = []
+    for table_col in table_cols:
+        match = False
+        for idx, col in enumerate(cols):
+            if table_col.lower() == col.lower():
+                order.append(idx)
+                match = True
+                break
+        if not match:
+            order.append(None)
+    return order
+
+
+def reorder_data(data, order):
+    reordered = []
+    for row in data:
+        new_row = [row[idx] if idx is not None else None for idx in order]
+        reordered.append(new_row)
+    return reordered

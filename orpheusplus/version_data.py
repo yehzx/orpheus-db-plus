@@ -8,7 +8,7 @@ import csv
 import sys
 from collections import OrderedDict
 
-from orpheusplus.utils import parse_commit
+from orpheusplus.utils import parse_commit, match_column_order, reorder_data, parse_csv_data, parse_csv_structure, parse_table_types
 from orpheusplus import LOG_DIR
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.operation import Operation
@@ -31,7 +31,7 @@ class VersionData():
 
     def init_table(self, table_name, table_structure_path):
         self.table_name = table_name
-        table_structure = self._parse_csv_structure(table_structure_path)
+        table_structure = parse_csv_structure(table_structure_path)
 
         # Initialize data table
         # rid: as an index for each relation
@@ -60,29 +60,6 @@ class VersionData():
     def _create_operation(self):
         self.operation = Operation()
         self.operation.init_operation(self.db_name, self.table_name, self.get_current_version())
-
-    def _save_log(self, **commit_info):
-        log_path = LOG_DIR / f"{self.db_name}/{self.table_name}"
-        log_path.parent.mkdir(exist_ok=True)
-
-        with open(log_path, "a") as f:
-            f.write(
-                f"commit {self.version_graph.head}\n"
-                f"Author: {self.cnx.cnx_args['user']}\n"
-                f"Date: {commit_info['now']}\n"
-                f"Message: {commit_info['msg']}\n\n"
-            )
-
-    def _remove_log(self):
-        log_path = LOG_DIR / f"{self.db_name}/{self.table_name}"
-        try:
-            log_path.unlink()
-        except FileNotFoundError:
-            pass
-        try:
-            log_path.parent.rmdir()
-        except OSError:
-            pass
 
     def load_table(self, table_name):
         self.table_name = table_name
@@ -113,14 +90,14 @@ class VersionData():
     
     def from_file(self, operation, filepath):
         if operation == "insert":
-            data = self._parse_csv_data(filepath)
+            data = parse_csv_data(filepath)
             self.insert(data)
         elif operation == "delete":
-            data = self._parse_csv_data(filepath)
+            data = parse_csv_data(filepath)
             self.delete(data)
         elif operation == "update":
-            old_data = self._parse_csv_data(filepath[0])
-            new_data = self._parse_csv_data(filepath[1])
+            old_data = parse_csv_data(filepath[0])
+            new_data = parse_csv_data(filepath[1])
             self.update(old_data, new_data)
     
     def from_parsed_data(self, operation, attrs):
@@ -132,12 +109,6 @@ class VersionData():
         elif operation == "update":
             self.update_from_sql(attrs["where"], attrs["set"])
     
-    def add_rid(self, data, max_rid):
-        for row in data:
-            max_rid += 1
-            row.insert(0, max_rid)
-        return data
-            
     def insert(self, data): 
         if len(data) == 0:
             return
@@ -148,6 +119,19 @@ class VersionData():
         self.cnx.executemany(stmt, data)
         self.cnx.commit()
         self.operation.insert(start_rid=max_rid + 1, num_rids=len(data))
+    
+    @staticmethod
+    def add_rid(data, max_rid):
+        for row in data:
+            max_rid += 1
+            row.insert(0, max_rid)
+        return data
+    
+    @staticmethod 
+    def _arg_stmt(table_structure, with_rid=True):
+        length = len(table_structure) if with_rid else len(table_structure) - 1
+        stmt = f"({', '.join(['%s'] * length)})"
+        return stmt
     
     def delete(self, data, update=False):
         if len(data) == 0:
@@ -258,7 +242,6 @@ class VersionData():
         else:
             self.cnx.execute(f"DROP TABLE {self.table_name}{self.head_suffix}")
 
-
     def parse_log(self):
         parsed_commits = []
         with open(LOG_DIR / f"{self.db_name}/{self.table_name}") as f:
@@ -269,15 +252,31 @@ class VersionData():
                 parsed_commits.append(parse_commit(commit))
         return parsed_commits
 
+    def _save_log(self, **commit_info):
+        log_path = LOG_DIR / f"{self.db_name}/{self.table_name}"
+        log_path.parent.mkdir(exist_ok=True)
+
+        with open(log_path, "a") as f:
+            f.write(
+                f"commit {self.version_graph.head}\n"
+                f"Author: {self.cnx.cnx_args['user']}\n"
+                f"Date: {commit_info['now']}\n"
+                f"Message: {commit_info['msg']}\n\n"
+            )
+
+    def _remove_log(self):
+        log_path = LOG_DIR / f"{self.db_name}/{self.table_name}"
+        try:
+            log_path.unlink()
+        except FileNotFoundError:
+            pass
+        try:
+            log_path.parent.rmdir()
+        except OSError:
+            pass
 
     def get_current_version(self):
         return self.version_graph.head
-    
-    @staticmethod 
-    def _arg_stmt(table_structure, with_rid=True):
-        length = len(table_structure) if with_rid else len(table_structure) - 1
-        stmt = f"({', '.join(['%s'] * length)})"
-        return stmt
     
     def _get_max_rid(self):
         stmt = f"SELECT MAX(rid) FROM {self.table_name}{self.data_table_suffix}"
@@ -294,67 +293,19 @@ class VersionData():
             max_rid_2 = 0
         max_rid = max(max_rid_1, max_rid_2)
         return max_rid
-    
-    def _get_table_types(self):
-        schema = self.cnx.execute(f"SHOW COLUMNS FROM `{self.table_name}{self.data_table_suffix}`")
-        type_dict = self._parse_table_types(schema) 
-        return type_dict
-    
-    @staticmethod
-    def _parse_table_types(schema):
-        type_dict = OrderedDict()
-        for col in schema:
-            type_dict[col[0]] = col[1].decode()
-        return type_dict
 
-    @staticmethod
-    def _parse_csv_structure(filepath):
-        stmt = ""
-        with open(filepath, newline="") as f:
-            reader = csv.reader(f)
-            for row in reader:
-                stmt += " ".join(row)
-                stmt += ", "
-            stmt = stmt.rstrip(", ")
-        return stmt 
-
-    @staticmethod
-    def _parse_csv_data(filepath):
-        data = []
-        with open(filepath, newline="") as f:
-            reader = csv.reader(f)
-            data = list(reader)
-        return data    
-
-    @staticmethod 
-    def _match_table_column(cols, data):
+    def _match_table_column(self, cols, data):
         if cols is None:
             return data
         if len(data[0]) != len(cols):
             raise ValueError("Column value length mismatch")
-        table_cols = list(VersionData._get_table_types().keys())
-        order = VersionData._match_column_order(table_cols, cols)
-        reordered_data = VersionData._reorder_data(data, order)
+        table_cols = list(self._get_table_types().keys())
+        order = match_column_order(table_cols, cols)
+        reordered_data = reorder_data(data, order)
         return reordered_data
-
-    @staticmethod
-    def _match_column_order(table_cols, cols):
-        order = []
-        for table_col in table_cols:
-            match = False
-            for idx, col in enumerate(cols):
-                if table_col.lower() == col.lower():
-                    order.append(idx)
-                    match = True
-                    break
-            if not match:
-                order.append(None)
-        return order
     
-    @staticmethod
-    def _reorder_data(data, order):
-        reordered = []
-        for row in data:
-            new_row = [row[idx] if idx is not None else None for idx in order]
-            reordered.append(new_row)
-        return reordered
+    def _get_table_types(self):
+        schema = self.cnx.execute(f"SHOW COLUMNS FROM `{self.table_name}{self.data_table_suffix}`")
+        type_dict = parse_table_types(schema) 
+        return type_dict
+    
