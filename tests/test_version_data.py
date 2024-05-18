@@ -27,14 +27,15 @@ def expected_data():
                  ['104', 'd', '23', '7000'],
                  ['105', 'e', '21', '7400'],
                  ['106', 'f', '32', '10320']]
-    yield [data_1, data_2, data_both]
+    data_empty = [['employee_id', 'name', 'age', 'salary']]
+    yield {"1": data_1, "2": data_2, "both": data_both, "empty": data_empty}
 
 
 def test_c_insert(func, data_path, table, expected_data, tempdir):
     table.from_file("insert", data_path[0])
     func.check_head()
     data = func.read_result()
-    assert data == expected_data[0], f"result: {data}\nexpected: {expected_data[0]}"
+    assert data == expected_data['1'], f"result: {data}\nexpected: {expected_data['1']}"
 
 
 def test_c_insert_delete(func, data_path, table, expected_data, tempdir):
@@ -42,7 +43,7 @@ def test_c_insert_delete(func, data_path, table, expected_data, tempdir):
     table.from_file("delete", data_path[0])
     func.check_head()
     data = func.read_result()
-    assert data == [expected_data[0][0]], f"result: {data}\nexpected: {[expected_data[0][0]]}"
+    assert data == [expected_data['1'][0]], f"result: {data}\nexpected: {[expected_data['1'][0]]}"
 
 
 def test_c_insert_delete(func, data_path, table, expected_data, tempdir):
@@ -50,7 +51,7 @@ def test_c_insert_delete(func, data_path, table, expected_data, tempdir):
     table.from_file("update", [data_path[0], data_path[1]])
     func.check_head()
     data = func.read_result()
-    assert data == expected_data[1], f"result: {data}\nexpected: {expected_data[1]}"
+    assert data == expected_data['2'], f"result: {data}\nexpected: {expected_data['2']}"
 
 
 def test_c_commit_raise_error_1(table):
@@ -70,12 +71,36 @@ def test_c_commit_raise_error_2(table, data_path):
 def test_c_commit(func, table_with_data, expected_data):
     func.check_version_table(1)
     result = func.read_result()
-    assert result == expected_data[0], f"result: {result}\nexpected: {expected_data[0]}"
+    assert result == expected_data['1'], f"result: {result}\nexpected: {expected_data['1']}"
 
     func.check_version_table(2)
     result = func.read_result()
-    assert result == expected_data[2], f"result: {result}\nexpected: {expected_data[2]}"
+    assert result == expected_data['both'], f"result: {result}\nexpected: {expected_data['both']}"
     
     func.check_version_table(3)
     result = func.read_result()
-    assert result == expected_data[0], f"result: {result}\nexpected: {expected_data[0]}"
+    assert result == expected_data['1'], f"result: {result}\nexpected: {expected_data['1']}"
+
+
+def test_c_merge_1(func, table_for_merge, expected_data):
+    table_for_merge.merge(2, resolved_file="./tests/test_data/conflicts_1.csv")
+    func.check_version_table(4)
+    result = func.read_result()
+    print(result)
+    assert result == expected_data['empty'], f"result: {result}\nexpected: {expected_data['empty']}"
+    
+
+def test_c_merge_2(func, table_for_merge, expected_data):
+    table_for_merge.merge(2, resolved_file="./tests/test_data/conflicts_2.csv")
+    func.check_version_table(4)
+    result = func.read_result()
+    print(result)
+    assert result == expected_data['2'], f"result: {result}\nexpected: {expected_data['2']}"
+
+
+def test_c_merge_3(func, table_for_merge, expected_data):
+    table_for_merge.merge(2, resolved_file="./tests/test_data/conflicts_3.csv")
+    func.check_version_table(4)
+    result = func.read_result()
+    print(result)
+    assert result == expected_data['2'][:-1], f"result: {result}\nexpected: {expected_data['2'][:-1]}"

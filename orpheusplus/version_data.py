@@ -4,10 +4,10 @@ Reference:
 ORPHEUSDB: Bolt-on Versioning for Relational Databases
 (https://www.vldb.org/pvldb/vol10/p1130-huang.pdf)
 """
-import csv
 import sys
-from collections import OrderedDict
-
+import csv
+import time
+from datetime import datetime
 from orpheusplus.utils import parse_commit, match_column_order, reorder_data, parse_csv_data, parse_csv_structure, parse_table_types
 from orpheusplus import LOG_DIR
 from orpheusplus.mysql_manager import MySQLManager
@@ -76,6 +76,7 @@ class VersionData():
         elif not self.operation.is_empty():
             print("Please commit changes or discard them by `checkout head`")
             return
+        self.operation.load_operation(self.db_name, self.table_name, version)
         rids = self.version_graph.switch_version(version)
         rids = [(rid,) for rid in rids]
         stmt = f"DELETE FROM {self.table_name}{self.head_suffix}"
@@ -87,6 +88,112 @@ class VersionData():
         )
         self.cnx.executemany(stmt, rids)
         self.cnx.commit()
+    
+    def merge(self, version, resolved_file=None):
+        if not self.operation.is_empty():
+            print("Please commit changes or discard them by `checkout head` before merging")
+            sys.exit()        
+        changes_head, changes_version = self.version_graph.gather_changes(version)
+        conflicts = self.version_graph.gather_conflicts(changes_head, changes_version)
+        changed_rids = set(list(changes_head.keys()) + list(changes_version.keys()))
+        keep_rids = set()
+        delete_rids = set()
+        if conflicts:
+            if resolved_file is None:
+                self._write_conflict_file(version, conflicts)
+                sys.exit()
+            else:
+                try:
+                    keep_rids, delete_rids = VersionData._parse_keep_or_delete(resolved_file, conflicts, version)
+                    keep_rids = set(keep_rids)
+                    delete_rids = set(delete_rids)
+                except:
+                    raise Exception("Invalid resolved file. Abort merge.")
+        stmt = f"SELECT rid FROM {self.table_name}{HEAD_SUFFIX}"
+        result = self.cnx.execute(stmt)
+        rids_in_head = self.version_graph.version_table.get_version_rids(self.version_graph.head)
+        assert set(rids_in_head) == set(row[0] for row in result)
+        rids_in_version = self.version_graph.version_table.get_version_rids(version)
+
+        next_version = self.version_graph.version_count + 1
+        commit_info = {"msg": f"Create version {next_version} (merge version {self.version_graph.head} and version {version}.",
+                       "now": datetime.now()}
+        
+        total_rids = set(rids_in_version + rids_in_head)
+        total_rids =  total_rids - changed_rids - delete_rids
+        rids_in_head = set(rids_in_head)
+        rids_in_version = set(rids_in_version)
+
+        # Head
+        rids_to_add = total_rids - rids_in_head
+        rids_to_delete = rids_in_head - total_rids
+        self.operation.insert(rids_to_add) 
+        self.operation.delete(rids_to_delete)
+        self.operation.parse()
+        self.version_graph.add_version(self.operation, **commit_info)
+
+        # Version
+        rids_to_add = total_rids - rids_in_version
+        rids_to_delete = rids_in_version - total_rids
+        operation = Operation()
+        operation.load_operation(self.db_name, self.table_name, version)
+        operation.insert(rids_to_add)
+        operation.delete(rids_to_delete)
+        operation.parse()
+        _, overlap = self.version_graph._get_num_rids_and_overlap(version, operation)
+        self.version_graph.G.add_edge(version, next_version, overlap=overlap)
+        self.version_graph._save_graph()
+        operation.commit(next_version, **commit_info)
+
+        print("Resolve conflicts.")
+
+
+    def _write_conflict_file(self, version, conflicts):
+        cols = list(self.table_structure.keys())
+        cols.remove("rid")
+        write_cols = ["select_head"] + cols + ["timestamp"] + [f"select_{version}"] + cols + ["timestamp"]
+        conflict_path = f"./conflicts_{int(time.time())}.csv"
+        with open(conflict_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(write_cols)
+            for (head_rid, head_timestamp), (version_rid, version_timestamp) in conflicts.values():
+                if head_rid is None:
+                    head_data = [""] * len(cols)
+                else:
+                    head_data = list(self.select_by_rid(head_rid)[0])
+                if version_rid is None:
+                    version_data = [""] * len(cols)
+                else:
+                    version_data = list(self.select_by_rid(version_rid)[0])
+                select = (1, 0) if head_timestamp > version_timestamp else (0, 1)
+                writer.writerow([select[0]] + head_data + [head_timestamp] + [select[1]] + version_data + [version_timestamp])
+        print(f"Find conflicts in {len(conflicts)} rows.")
+        print(f"Save conflicts to {conflict_path}. Please resolve it by marking the rows as `1`.")
+        print(f"Try `merge` again with resolved file.")
+
+    @staticmethod                         
+    def _parse_keep_or_delete(resolved_file, conflicts, version):
+        keep_rids = []
+        delete_rids = []
+        with open(resolved_file, "r") as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+            select_head_idx = headers.index("select_head")
+            select_version_idx = headers.index(f"select_{version}")
+            for idx, row in enumerate(reader):
+                conflict = conflicts[idx + 1]
+                (head_rid, _), (version_rid, _) = conflict
+                if head_rid is not None:
+                    if int(row[select_head_idx]) == 1:
+                                keep_rids.append(head_rid)
+                    else:
+                        delete_rids.append(head_rid)
+                if version_rid is not None:
+                    if int(row[select_version_idx]) == 1:
+                        keep_rids.append(version_rid)
+                    else:
+                        delete_rids.append(version_rid)
+        return keep_rids, delete_rids
     
     def from_file(self, operation, filepath):
         if operation == "insert":
@@ -118,7 +225,7 @@ class VersionData():
         stmt = f"INSERT INTO {self.table_name}{self.head_suffix} VALUES {arg_stmt}"
         self.cnx.executemany(stmt, data)
         self.cnx.commit()
-        self.operation.insert(start_rid=max_rid + 1, num_rids=len(data))
+        self.operation.insert(list(range(max_rid + 1, max_rid + 1 + len(data))))
     
     @staticmethod
     def add_rid(data, max_rid):
@@ -139,17 +246,22 @@ class VersionData():
         cols = list(self.table_structure.keys())
         cols.remove("rid")
         data_stmt = tuple(tuple(each) for each in data)
-        stmt = (
-            f"SELECT rid FROM {self.table_name}{self.head_suffix} "
-            f"WHERE ({', '.join(cols)}) IN {data_stmt}"
-        )   
-        result = self.cnx.execute(stmt)
-        rids = [each[0] for each in result]
+        delete_rids = []
+        total_rids = []
+        for idx, each_stmt in enumerate(data_stmt):
+            stmt = (
+                f"SELECT rid FROM {self.table_name}{self.head_suffix} "
+                f"WHERE ({', '.join(cols)}) = {each_stmt}"
+            )   
+            result = self.cnx.execute(stmt)
+            rids = [each[0] for each in result]
+            delete_rids.append(rids)
+            total_rids.extend(rids)
 
         # Behavior of `Update`
         # Duplicated entries will be completely removed but new entries will be added uniquely.
         if update:
-            if len(data) != len(rids):
+            if len(data) != len(total_rids):
                 print("Duplicated entries detected. After `UPDATE`, new entries will be unique but not duplicated.")
                 ans = input("Proceed to update? (y/n)\n")
                 if ans != "y":
@@ -162,7 +274,17 @@ class VersionData():
         )
         self.cnx.execute(stmt)
         self.cnx.commit()
-        self.operation.delete(rids)
+        self.operation.delete(total_rids)
+
+        return delete_rids
+    
+    def select_by_rid(self, rid):
+        stmt = (
+            f"SELECT * FROM {self.table_name}{self.data_table_suffix} "
+            f"WHERE rid = {rid}"
+        )
+        result = self.cnx.execute(stmt)
+        return [each[1:] for each in result]
     
     def delete_from_sql(self, where, return_data=False):
         stmt = (
@@ -181,23 +303,31 @@ class VersionData():
 
         if return_data:
             data = [each[1:] for each in result]
-            return data
+            return rids, data
         else:
-            return None
+            return rids
 
     def update(self, old_data, new_data):
         if len(old_data) != len(new_data) or len(old_data) == 0:
             return
-        self.delete(old_data, update=True)
+        delete_rids = self.delete(old_data, update=True)
         self.insert(new_data)
-        self.operation.update()
+        insert_rids = self._get_insert_rids()
+        self.operation.update(delete_rids, insert_rids)
     
     def update_from_sql(self, where, set):
-        data = self.delete_from_sql(where, return_data=True)
+        delete_rids, data = self.delete_from_sql(where, return_data=True)
         data = [list(row) for row in data]
         data = self._update_data(data, set)
         self.insert(data)
-        self.operation.update()
+        insert_rids = self._get_insert_rids()
+        self.operation.update(delete_rids, insert_rids)
+    
+    def _get_insert_rids(self):
+        assert self.operation.stmts[-1][0] == "insert"
+        _, (start, num), _ = self.operation.stmts[-1] 
+        insert_rids = list(range(start, start + num))
+        return insert_rids        
     
     def _update_data(self, data, set: dict):
         cols = list(self.table_structure.keys())

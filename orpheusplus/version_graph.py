@@ -1,5 +1,4 @@
 import pickle
-import os
 import networkx as nx
 
 from orpheusplus import VERSIONGRAPH_DIR
@@ -115,6 +114,35 @@ class VersionGraph():
         overlap -= len(operations.remove_rids)
         
         return total_rids, overlap
+
+    def gather_changes(self, version):
+        path_1, path_2 = self._find_path_to_common_ancestor(self.head, version)
+        stmts_1 = self._gather_changes_from_path(path_1)
+        stmts_2 = self._gather_changes_from_path(path_2)
+        changes_head = Operation._merge_changes(stmts_1)
+        changes_version = Operation._merge_changes(stmts_2)
+        return changes_head, changes_version
+
+    def gather_conflicts(self, changes_1, changes_2):
+        conflicts = Operation._find_conflicts(changes_1, changes_2)
+        return conflicts
+            
+    def _gather_changes_from_path(self, path):
+        changes = []
+        node = path.pop(0)
+        while path:
+            child_node = path[0]
+            op = Operation()
+            op.load_operation(self.db_name, self.table_name, node)
+            changes.extend(op.get_commit_change(child_node))
+            node = path.pop(0)
+        return changes
+
+    def _find_path_to_common_ancestor(self, version_1, version_2):
+        ancestor = nx.lowest_common_ancestor(self.G, version_1, version_2)
+        path_1 = nx.shortest_path(self.G, ancestor, version_1)
+        path_2 = nx.shortest_path(self.G, ancestor, version_2)
+        return path_1, path_2
     
     def remove(self):
         self.version_table.delete()

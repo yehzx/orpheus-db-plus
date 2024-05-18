@@ -72,6 +72,23 @@ def table_with_data(cnx):
     version_data.remove()
 
 
+@pytest.fixture(scope="function")
+def table_for_merge(cnx):
+    _drop_table_if_exists(cnx)
+    version_data = VersionData(cnx)
+    version_data.init_table(TEST_TABLE_NAME, "./tests/test_data/sample_schema.csv")
+    now = datetime.now()
+    version_data.from_file("insert", "./tests/test_data/data_1.csv")
+    version_data.commit(msg="version_1", now=now)
+    version_data.from_file("update", ["./tests/test_data/data_1.csv", "./tests/test_data/data_2.csv"])
+    version_data.commit(msg="version_2", now=now)
+    version_data.checkout(1)
+    version_data.from_file("delete", "./tests/test_data/data_1.csv")
+    version_data.commit(msg="version_3", now=now)
+    yield version_data
+    version_data.remove()    
+
+
 @pytest.fixture(scope="session")
 def tempdir():
     with tempfile.TemporaryDirectory(dir="./tests") as dir:

@@ -1,8 +1,10 @@
 import pickle
-from datetime import datetime
-from orpheusplus import OPERATION_DIR
-from collections import Counter
+from collections import Counter, defaultdict
 from contextlib import contextmanager
+from datetime import datetime
+
+from orpheusplus import OPERATION_DIR
+
 
 class Operation():
     def __init__(self):
@@ -50,8 +52,11 @@ class Operation():
         except OSError:
             pass
     
-    def insert(self, start_rid, num_rids):
-        self.stmts.append(("insert", (start_rid, num_rids), datetime.now()))
+    def insert(self, rids):
+        now = datetime.now()
+        rids = self._parse_rids(rids)
+        for start_rid, num_rids in rids:
+            self.stmts.append(("insert", (start_rid, num_rids), now))
         self.save_operation()
 
     def delete(self, rids):
@@ -61,10 +66,15 @@ class Operation():
             self.stmts.append(("delete", (start_rid, num_rids), now))
         self.save_operation()
     
-    def update(self):
-        insert = self.stmts.pop()
-        delete = self.stmts.pop()
-        self.stmts.append(("update", (delete, insert), delete[2]))
+    def update(self, delete_list, insert_list):
+        insert_stmt = self.stmts.pop()
+        delete_stmt = self.stmts.pop()
+        mapping = {}
+        for insert, delete in zip(insert_list, delete_list):
+            for each_delete_rid in delete:
+                mapping[each_delete_rid] = insert
+
+        self.stmts.append(("update", (delete_stmt, insert_stmt, mapping), delete_stmt[2]))
         self.save_operation()
 
     def clear(self):
@@ -73,8 +83,21 @@ class Operation():
         self.remove_rids = []
         self.save_operation()
     
+    def get_commit_change(self, version):
+        # Return the stmts before commiting `version`
+        changes = []
+        for stmt in self.history:
+            changes.append(stmt)
+            # ('commit', (2, 'version_2'), datetime.datetime(2024, 5, 18, 16, 52, 35, 107009))
+            if stmt[0] == "commit":
+                if stmt[1][0] == version:
+                    return changes
+                else:
+                    changes = []
+        raise Exception(f"Version {version} not found in commit history.")
+    
     def is_empty(self):
-        with self._dry_parse():
+        with self.dry_parse():
             if not(self.add_rids or self.remove_rids):
                 empty = True
             else:
@@ -107,14 +130,14 @@ class Operation():
 
     def parse(self):
         while self.stmts:
-            stmt = self.stmts.pop()
-            self.history.insert(0, stmt)
+            stmt = self.stmts.pop(0)
+            self.history.append(stmt)
             self._parse_stmt(stmt)
         self._remove_overlapping_rids()
         self.save_operation()
     
     @contextmanager
-    def _dry_parse(self):
+    def dry_parse(self):
         add_rids = self.add_rids
         remove_rids = self.remove_rids
         for stmt in self.stmts:
@@ -133,13 +156,84 @@ class Operation():
             start_rid, num_rids = args
             self.remove_rids.extend(range(start_rid, start_rid + num_rids))
         elif op == "update":
-            delete, insert = args
+            delete, insert, mapping = args
             self._parse_stmt(delete)
             self._parse_stmt(insert)
-    
+
+    # @staticmethod
+    # def _return_parsed_stmt(stmt, add_rids, remove_rids):
+    #     def __return_parsed_stmt(stmt):
+    #         op, args, timestamp = stmt
+    #         if op == "insert":
+    #             start_rid, num_rids = args
+    #             add_rids.extend(range(start_rid, start_rid + num_rids))
+    #         elif op == "delete":
+    #             start_rid, num_rids = args
+    #             remove_rids.extend(range(start_rid, start_rid + num_rids))
+    #         elif op == "update":
+    #             delete, insert = args
+    #             __return_parsed_stmt(delete)
+    #             __return_parsed_stmt(insert)
+    #     __return_parsed_stmt(stmt)
+    #     return add_rids, remove_rids
+
     def _remove_overlapping_rids(self):
         # Didn't use set because same entries can be inserted and deleted and then inserted.
         add = Counter(self.add_rids)
         remove = Counter(self.remove_rids)
         self.add_rids = sorted([rid for rid, count in add.items() if count > remove[rid]])
         self.remove_rids = sorted([rid for rid, count in remove.items() if count > add[rid]])
+
+    # @staticmethod 
+    # def _return_remove_overlapping_rids(add_rids, remove_rids):
+    #     add = Counter(add_rids)
+    #     remove = Counter(remove_rids)
+    #     add_rids = sorted([rid for rid, count in add.items() if count > remove[rid]])
+    #     remove_rids = sorted([rid for rid, count in remove.items() if count > add[rid]])
+    #     return add_rids, remove_rids
+
+    @staticmethod 
+    def _merge_changes(stmts):
+        history = Operation._construct_history(stmts)
+        changes = Operation._solve_changes(history)
+        return changes
+
+    @staticmethod 
+    def _construct_history(stmts):
+        history = {}
+        for stmt in stmts:
+            op, args, timestamp = stmt
+            if op == "insert":
+                pass
+            elif op == "delete":
+                for rid in range(args[0], args[0] + args[1]):
+                    history[rid] = (None, timestamp)
+            elif op == "update":
+                delete, _, mapping = args
+                for rid in range(delete[1][0], delete[1][0] + delete[1][1]):
+                    history[rid] = (mapping[rid], timestamp)
+        return history
+    
+    @staticmethod
+    def _solve_changes(history):
+        change = {}
+        history = dict(history)
+        for parent_rid, value in history.items(): 
+            next_state = value
+            try:
+                while history[next_state[0]]:
+                    next_state = history[next_state[0]]
+            except:
+                pass
+            change[parent_rid] =  next_state
+        return change
+    
+    @staticmethod
+    def _find_conflicts(changes_1, changes_2):
+        conflicts = {}
+        for rid, (change_to, timestamp) in changes_1.items():
+            if not changes_2[rid]:
+                continue
+            if changes_2[rid][0] != change_to:
+                conflicts[rid] = [(change_to, timestamp), changes_2[rid]]
+        return conflicts

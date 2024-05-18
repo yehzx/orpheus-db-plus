@@ -55,6 +55,7 @@ def setup_argparsers():
     merge_parser.add_argument("-n", "--name", required=True, help="table name")
     merge_parser.add_argument("-v", "--version", required=True,
                               help="the version to be merged into the current version")
+    merge_parser.add_argument("-r", "--resolved", help="path to resolved conflict file")
     merge_parser.set_defaults(func=merge)
 
     insert_parser = subparsers.add_parser("insert", help="Insert data from file")
@@ -242,7 +243,7 @@ def merge(args):
         print("Please commit before merge.")
         return
     table.checkout()
-    table.merge(args.version)
+    table.merge(args.version, args.resolved)
 
 
 def manipulate(args):
