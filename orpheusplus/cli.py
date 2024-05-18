@@ -207,6 +207,7 @@ def log(args):
             msg += f"\nAuthor: {commit['author']}"
             msg += f"\nDate: {commit['date']}"
             msg += f"\nMessage: {commit['message']}\n\n"
+    print(msg)
 
 
 def init_table(args):
