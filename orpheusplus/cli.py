@@ -287,16 +287,25 @@ def drop(args):
 
 
 def run(args):
+    import csv
+    from pathlib import Path
+
     from tabulate import tabulate
 
     from orpheusplus.query_parser import SQLParser
 
-    def _write_csv(data, path):
-        import csv
-        with open(path, "w", newline="") as f:
+    def _write_csv(data, path, count=[0]):
+        if count[0] == 0:
+        
+            path = Path(path)
+            path.unlink(missing_ok=True)
+        
+        with open(path, "a", newline="") as f:
             writer = csv.writer(f)
             writer.writerows(data)
-        print(f"Save results to {path}")
+        
+        count[0] += 1
+        return count[0]
 
     def _handle_result(result, mydb):
         field = [col[0] for col in mydb.cursor.description]
@@ -328,7 +337,7 @@ def run(args):
             if args.output is not None:
                 output = result["data"]
                 output.insert(0, result["field"])
-                _write_csv(output, args.output)
+                count = _write_csv(output, args.output)
             else:
                 print(ori_stmt)
                 _print_result(result["data"], result["field"])
@@ -336,6 +345,9 @@ def run(args):
         elif op in ("insert", "delete", "update"):
             table.load_table(stmt["table_name"])
             table.from_parsed_data(op, stmt["attributes"])
+
+    if args.output is not None:
+        print(f"Save results of {count} statements to {args.output}")
 
 
 if __name__ == "__main__":
