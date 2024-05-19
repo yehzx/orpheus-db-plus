@@ -82,6 +82,7 @@ def test_get_where(input, expected):
         ("INSERT INTO VTABLE foo VALUES (1, 2);", {"table_name": "foo", "operation": "insert", "attributes": {"columns": None, "data": [["1", "2"]]}}),
         ("INSERT INTO VTABLE foo VALUES (1, 2), (3, 4);", {"table_name": "foo", "operation": "insert", "attributes": {"columns": None, "data": [["1", "2"], ["3", "4"]]}}),
         ("INSERT INTO VTABLE foo (bar, baz) VALUES (1, 2), (3, 4);", {"table_name": "foo", "operation": "insert", "attributes": {"columns": ["bar", "baz"], "data": [["1", "2"], ["3", "4"]]}}),
+        ("INSERT INTO VTABLE foo (`bar`, `baz`) VALUES (1, 2), (3, 4);", {"table_name": "foo", "operation": "insert", "attributes": {"columns": ["bar", "baz"], "data": [["1", "2"], ["3", "4"]]}}),
         ("UPDATE VTABLE foo SET bar = 1, baz=2;", {"table_name": "foo", "operation": "update", "attributes": {"set": {"bar": "1", "baz": "2"}, "where": ""}}),
         ("UPDATE VTABLE foo SET bar = 1 WHERE baz = 2;", {"table_name": "foo", "operation": "update", "attributes": {"set": {"bar": "1"}, "where": "WHERE baz = 2;"}}),
         ("DELETE FROM VTABLE foo;", {"table_name": "foo", "operation": "delete", "attributes": {"where": ""}}),

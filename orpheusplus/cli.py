@@ -38,9 +38,10 @@ def setup_argparsers():
     drop_parser.add_argument("-n", "--name", required=True, help="table name")
     drop_parser.add_argument("--all", action="store_true",
                              help="don't keep the non-version-controlled table")
+    drop_parser.add_argument("-y", "--yes", action="store_true", help="confirm dropping")
     drop_parser.set_defaults(func=drop)
 
-    checkout_parser = subparsers.add_parser("checkout", help="Checkout a version")
+    checkout_parser = subparsers.add_parser("checkout", help="Switch to a version")
     checkout_parser.add_argument("-n", "--name", required=True, help="table name")
     checkout_parser.add_argument("-v", "--version", required=True, help="version number or `head`")
     checkout_parser.set_defaults(func=checkout)
@@ -50,9 +51,9 @@ def setup_argparsers():
     commit_parser.add_argument("-m", "--message", help="commit message")
     commit_parser.set_defaults(func=commit)
 
-    merge_parser = subparsers.add_parser("merge", help="Join two versions")
+    merge_parser = subparsers.add_parser("merge", help="Combine two versions")
     merge_parser.add_argument("-n", "--name", required=True, help="table name")
-    merge_parser.add_argument("-v", "--version", required=True,
+    merge_parser.add_argument("-v", "--version", required=True, type=int,
                               help="the version to be merged into the current version")
     merge_parser.add_argument("-r", "--resolved", help="path to resolved conflict file")
     merge_parser.set_defaults(func=merge)
@@ -213,6 +214,7 @@ def log(args):
 def init_table(args):
     table = _connect_table()
     table.init_table(args.name, args.structure)
+    print(f"Table `{args.name}` initialized successfully.")
 
 
 def checkout(args):
@@ -221,8 +223,13 @@ def checkout(args):
     if args.version == "head":
         version = table.get_current_version()
     else:
-        version = int(args.version)
+        try:
+            version = int(args.version)
+        except ValueError:
+            print("Invalid version number.")
+            sys.exit()
     table.checkout(version)
+    print(f"Checkout to version {version}.")
 
 
 def commit(args):
@@ -233,28 +240,37 @@ def commit(args):
     table = _connect_table()
     table.load_table(args.name)
     table.commit(msg=args.message, now=now)
+    head = table.version_graph.head
+    print(f"Create version {head}.")
 
 
 def merge(args):
     table = _connect_table()
     table.load_table(args.name)
+    head = table.version_graph.head
     if not table.operation.is_empty():
         print("Please commit before merge.")
-        return
-    table.checkout()
+        sys.exit()
     table.merge(args.version, args.resolved)
+    new_head = table.version_graph.head
+    print(f"Merge version {head} and {args.version} into version {new_head}.")
 
 
 def manipulate(args):
     table = _connect_table()
     table.load_table(args.name)
     table.from_file(args.op, args.data)
+    print(f"{str(args.op).title()} from file {args.data}")
 
 
 def drop(args):
     from orpheusplus import LOG_DIR
 
-    ans = input(f"Do you really want to drop `{args.name}`? (y/n)\n")
+    if args.yes:
+        ans = "y"
+    else:
+        ans = input(f"Do you really want to drop `{args.name}`? (y/n)\n")
+
     if ans == "y":
         (LOG_DIR / args.name).unlink(missing_ok=True)
         table = _connect_table()
@@ -299,7 +315,7 @@ def run(args):
     mydb = table.cnx
     parser = SQLParser()
     if args.file is not None:
-        parser.parse_file(args.input)
+        parser.parse_file(args.file)
     elif args.input is not None:
         parser.parse(args.input)
     else:

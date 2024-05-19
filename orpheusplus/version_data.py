@@ -51,7 +51,6 @@ class VersionData():
         self._create_version_graph()
         self._create_operation()
         self.table_structure = self._get_table_types()
-        print(f"Table `{table_name}` initialized successfully.")
 
     def _create_version_graph(self):
         self.version_graph = VersionGraph(self.cnx)
@@ -67,7 +66,22 @@ class VersionData():
         self.version_graph = VersionGraph(self.cnx)
         self.version_graph.load_version_graph(self.db_name, table_name)
         self.operation = Operation()
-        self.operation.load_operation(self.db_name, table_name, self.get_current_version())
+        try:
+            self.operation.load_operation(self.db_name, table_name, self.get_current_version())
+        except:
+            print("Corrupted version table.")
+            ans = input("Revert back to a normal table or drop it? (y/n/drop)\n")
+            if ans == "y":
+                self.operation.init_operation(self.db_name, table_name, self.get_current_version())
+                self.remove(keep_current=True)
+                print(f"Turn version table `{self.table_name} into a normal table.`")
+            elif ans == "drop":
+                self.remove()
+                print(f"Drop `{self.table_name}`")
+            else:
+                print("Abort loading version table.")
+            sys.exit()
+
     
     def checkout(self, version):
         if version == self.get_current_version():
@@ -76,7 +90,12 @@ class VersionData():
         elif not self.operation.is_empty():
             print("Please commit changes or discard them by `checkout head`")
             return
-        self.operation.load_operation(self.db_name, self.table_name, version)
+        try:
+            self.operation.load_operation(self.db_name, self.table_name, version)
+        except Exception:
+            print(f"Version {version} doesn't exist.")
+            sys.exit()
+
         rids = self.version_graph.switch_version(version)
         rids = [(rid,) for rid in rids]
         stmt = f"DELETE FROM {self.table_name}{self.head_suffix}"
@@ -108,6 +127,7 @@ class VersionData():
                     parsed = self._parse_keep_or_delete(resolved_file, conflicts, version)
                     keep_rids = set(parsed[0])
                     delete_rids = set(parsed[1])
+                    print("Resolve conflicts.")
                 except:
                     raise Exception("Invalid resolved file. Abort merge.")
 
@@ -115,8 +135,8 @@ class VersionData():
         rids_in_version = self.version_graph.version_table.get_version_rids(version)
         next_version = self.version_graph.version_count + 1
         
-        commit_info = {"msg": f"Create version {next_version} (merge version {self.version_graph.head} and version {version}.",
-                       "now": datetime.now()}
+        commit_info = {"msg": f"Create version {next_version} (merge version {self.version_graph.head} and version {version}).",
+                       "now": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         
         total_rids = set(rids_in_version + rids_in_head)
         total_rids =  total_rids - changed_rids - delete_rids
@@ -141,9 +161,8 @@ class VersionData():
         operation.parse()
         self.version_graph.merge_version(operation, from_version=version,
                                          to_version=next_version, **commit_info)
-
-        print("Resolve conflicts.")
-
+        self._create_operation()
+        self._save_log(**commit_info)
 
     def _write_conflict_file(self, version, conflicts):
         cols = list(self.table_structure.keys())

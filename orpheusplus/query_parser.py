@@ -175,18 +175,19 @@ class SQLParser():
         for idx in vtable_indices:
             # Case: > one vtable
             if type(tokens[idx + 1]) is IdentifierList:
-                replace = []
+                vtable = []
                 table_names = tokens[idx + 1].value.split(",")
                 for table_name in table_names:
-                    table_name = table_name.strip()
-                    replace.append(f"{table_name}{HEAD_SUFFIX}")
+                    table_name = table_name.strip().strip("`")
+                    vtable.append(f"{table_name}{HEAD_SUFFIX}")
                 tokens[idx] = SQLParser._empty_identifier()
-                tokens[idx + 1] = SQLParser._build_identifier(", ".join(replace))
+                tokens[idx + 1] = SQLParser._build_identifier(", ".join(vtable))
             # Case: only one vtable
             elif type(tokens[idx + 1]) is Identifier:
-                replace = SQLParser._build_identifier(f"{tokens[idx + 1]}{HEAD_SUFFIX}")
+                table_name = tokens[idx + 1].value.strip("`")
+                vtable = SQLParser._build_identifier(f"{table_name}{HEAD_SUFFIX}")
                 tokens[idx] = SQLParser._empty_identifier()
-                tokens[idx + 1] = replace
+                tokens[idx + 1] = vtable
 
         return tokens
     
@@ -206,15 +207,15 @@ class SQLParser():
             if type(tokens[3]) is sqlparse.sql.Function:
                 parsed["table_name"], parsed["attributes"]["columns"] = SQLParser._parse_function(tokens[3])
             else:
-                parsed["table_name"] = tokens[3].value
+                parsed["table_name"] = tokens[3].value.strip("`")
                 parsed["attributes"]["columns"] = None
             parsed["attributes"]["data"] =SQLParser._parse_values(tokens[4]) 
         elif op == "delete":
-            parsed["table_name"] = tokens[3].value
+            parsed["table_name"] = tokens[3].value.strip("`")
             parsed["attributes"]["where"] = _parse_where_for_versiondata(tokens)
         elif op == "update":
             # UPDATE VTABLE table_name SET column1 = value1, ...
-            parsed["table_name"] = tokens[2].value
+            parsed["table_name"] = tokens[2].value.strip("`")
             parsed["attributes"]["where"] = _parse_where_for_versiondata(tokens)
             parsed["attributes"]["set"] = SQLParser._parse_comparison(tokens[4])
 
@@ -242,7 +243,7 @@ class SQLParser():
     @staticmethod
     def _parse_value_tuple(string):
         values = string[1:-1].split(",")
-        values = [value.strip() for value in values]
+        values = [value.strip().strip("`") for value in values]
         return values
     
     @staticmethod
