@@ -29,7 +29,6 @@ class VersionGraph():
         self.version_count = 0
         self.G = nx.DiGraph()
         self._save_graph()
-        # print creation successful
         print("Version graph created successfully.")
         print(f"Save to: {self.version_graph_path}")
 
@@ -39,7 +38,6 @@ class VersionGraph():
     def _init_version_table(self):
         self.version_table = VersionTable(self.cnx)
         self.version_table.init_version_table(self.table_name)
-
 
     def load_version_graph(self, db_name, table_name):
         self.table_name = table_name
@@ -87,11 +85,8 @@ class VersionGraph():
         self.head = self.version_count
 
         self.G.add_node(self.head, num_rids=num_rids)
-        try:
-            if self.G.has_node(old_head):
-                self.G.add_edge(old_head, self.head, overlap=overlap)
-        except:
-            pass
+        if self.G.has_node(old_head):
+            self.G.add_edge(old_head, self.head, overlap=overlap)
 
         self.version_table.add_version(operations=operations,
                                        version=self.head,
@@ -99,7 +94,6 @@ class VersionGraph():
         
         operations.commit(self.head, **commit_info)
         self._save_graph()
-        
 
     def _get_num_rids_and_overlap(self, parent, operations: Operation):
         total_rids = 0
