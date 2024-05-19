@@ -31,19 +31,23 @@ relational databases. We currently decide to use MySQL as the backend database.
     ```
     orpheusplus init -n new_table -s ./examples/sample_schema.csv
     ```
+2. List all version tables in the current database
+    ```
+    orpheusplus ls
+    ```
 
-2. Insert data into a version table
+3. Insert data into a version table
     ```
     orpheusplus insert -n new_table -d ./examples/data_1.csv
     ```
 
-3. Commit changes (create a version)  
+4. Commit changes (create a version)  
     *Note: the version identifier is automatically created and is a number that increments from 1*
     ```
     orpheusplus commit -n new_table -m new_version
     ```
 
-4. Checkout a version (switch version)
+5. Checkout a version (switch version)
     ```
     # Add other data to the table and commit again
     orpheusplus insert -n new_table -d ./examples/data_2.csv
@@ -51,10 +55,18 @@ relational databases. We currently decide to use MySQL as the backend database.
     orpheusplus checkout -n new_table -v 1
     ```
 
-5. Run an example script to get the data from the current version 
+6. See the commit history
+    ```
+    orpheusplus log -n new_table
+    ```
+
+7. Run an example script to get the data from the current version 
     ```
     # Current version: 1
     orpheusplus run -f ./examples/sql_script_1.sql
+
+    # Or you can run
+    orpheusplus run -i "SELECT * FROM VTABLE new_table"
 
     ╒═══════════════╤═══════╤══════════╕
     │   employee_id │   age │   salary │
@@ -85,11 +97,24 @@ relational databases. We currently decide to use MySQL as the backend database.
     ├───────────────┼───────┼──────────┤
     │           106 │    32 │    10320 │
     ╘═══════════════╧═══════╧══════════╛
+
+    # To save output as a file
+    orpheusplus run -f ./examples/sql_script_1.sql -o ./output.csv
+    
+    # Or
+    orpheusplus run -i "SELECT * FROM VTABLE new_table" -o ./output.csv
     ```
-6. Drop the version table
+
+8. Drop the version table
     ```
+    # Fall back to a normal table
+    orpheusplus drop -n new_table
+    
+    # Completely drop the table
     orpheusplus drop -n new_table --all
     ```
+
+For more advanced usages, please refer to the Jupyter notebooks in `notebooks`. (Will be added soon)
 
 
 **Available commands:**
