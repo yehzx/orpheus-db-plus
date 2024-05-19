@@ -76,8 +76,8 @@ class VersionGraph():
         self.version_table = VersionTable(self.cnx)
         self.version_table.load_version_table(self.table_name)
 
-    def add_version(self, operations: Operation, **commit_info):
-        num_rids, overlap = self._get_num_rids_and_overlap(self.head, operations)
+    def add_version(self, operation: Operation, **commit_info):
+        num_rids, overlap = self._get_num_rids_and_overlap(self.head, operation)
 
         old_head = self.head
         self.version_count += 1
@@ -88,14 +88,21 @@ class VersionGraph():
         if self.G.has_node(old_head):
             self.G.add_edge(old_head, self.head, overlap=overlap)
 
-        self.version_table.add_version(operations=operations,
+        self.version_table.add_version(operation=operation,
                                        version=self.head,
                                        parent=old_head)
         
-        operations.commit(self.head, **commit_info)
+        operation.commit(self.head, **commit_info)
+        self._save_graph()
+    
+    def merge_version(self, operation: Operation,
+                      from_version, to_version, **commit_info):
+        _, overlap = self._get_num_rids_and_overlap(from_version, operation)
+        self.G.add_edge(from_version, to_version, overlap=overlap)
+        operation.commit(to_version, **commit_info)    
         self._save_graph()
 
-    def _get_num_rids_and_overlap(self, parent, operations: Operation):
+    def _get_num_rids_and_overlap(self, parent, operation: Operation):
         total_rids = 0
         overlap = 0
         try:
@@ -104,8 +111,8 @@ class VersionGraph():
         except KeyError:
             pass
         
-        total_rids += len(operations.add_rids) - len(operations.remove_rids)
-        overlap -= len(operations.remove_rids)
+        total_rids += len(operation.add_rids) - len(operation.remove_rids)
+        overlap -= len(operation.remove_rids)
         
         return total_rids, overlap
 

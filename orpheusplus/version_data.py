@@ -93,6 +93,7 @@ class VersionData():
         if not self.operation.is_empty():
             print("Please commit changes or discard them by `checkout head` before merging")
             sys.exit()        
+
         changes_head, changes_version = self.version_graph.gather_changes(version)
         conflicts = self.version_graph.gather_conflicts(changes_head, changes_version)
         changed_rids = set(list(changes_head.keys()) + list(changes_version.keys()))
@@ -104,18 +105,16 @@ class VersionData():
                 sys.exit()
             else:
                 try:
-                    keep_rids, delete_rids = VersionData._parse_keep_or_delete(resolved_file, conflicts, version)
-                    keep_rids = set(keep_rids)
-                    delete_rids = set(delete_rids)
+                    parsed = self._parse_keep_or_delete(resolved_file, conflicts, version)
+                    keep_rids = set(parsed[0])
+                    delete_rids = set(parsed[1])
                 except:
                     raise Exception("Invalid resolved file. Abort merge.")
-        stmt = f"SELECT rid FROM {self.table_name}{HEAD_SUFFIX}"
-        result = self.cnx.execute(stmt)
-        rids_in_head = self.version_graph.version_table.get_version_rids(self.version_graph.head)
-        assert set(rids_in_head) == set(row[0] for row in result)
-        rids_in_version = self.version_graph.version_table.get_version_rids(version)
 
+        rids_in_head = self.version_graph.version_table.get_version_rids(self.version_graph.head)
+        rids_in_version = self.version_graph.version_table.get_version_rids(version)
         next_version = self.version_graph.version_count + 1
+        
         commit_info = {"msg": f"Create version {next_version} (merge version {self.version_graph.head} and version {version}.",
                        "now": datetime.now()}
         
@@ -140,10 +139,8 @@ class VersionData():
         operation.insert(rids_to_add)
         operation.delete(rids_to_delete)
         operation.parse()
-        _, overlap = self.version_graph._get_num_rids_and_overlap(version, operation)
-        self.version_graph.G.add_edge(version, next_version, overlap=overlap)
-        self.version_graph._save_graph()
-        operation.commit(next_version, **commit_info)
+        self.version_graph.merge_version(operation, from_version=version,
+                                         to_version=next_version, **commit_info)
 
         print("Resolve conflicts.")
 

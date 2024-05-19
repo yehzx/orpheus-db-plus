@@ -107,6 +107,45 @@ class Operation():
             self.parse()
         return empty
 
+    @contextmanager
+    def dry_parse(self):
+        add_rids = self.add_rids
+        remove_rids = self.remove_rids
+        for stmt in self.stmts:
+            self._parse_stmt(stmt)
+        self._remove_overlapping_rids()
+        yield None
+        self.add_rids = add_rids
+        self.remove_rids = remove_rids
+
+    def parse(self):
+        while self.stmts:
+            stmt = self.stmts.pop(0)
+            self.history.append(stmt)
+            self._parse_stmt(stmt)
+        self._remove_overlapping_rids()
+        self.save_operation()
+    
+    def _parse_stmt(self, stmt):
+        op, args, timestamp = stmt
+        if op == "insert":
+            start_rid, num_rids = args
+            self.add_rids.extend(range(start_rid, start_rid + num_rids))
+        elif op == "delete":
+            start_rid, num_rids = args
+            self.remove_rids.extend(range(start_rid, start_rid + num_rids))
+        elif op == "update":
+            delete, insert, mapping = args
+            self._parse_stmt(delete)
+            self._parse_stmt(insert)
+
+    def _remove_overlapping_rids(self):
+        # Didn't use set because same entries can be inserted and deleted and then inserted.
+        add = Counter(self.add_rids)
+        remove = Counter(self.remove_rids)
+        self.add_rids = sorted([rid for rid, count in add.items() if count > remove[rid]])
+        self.remove_rids = sorted([rid for rid, count in remove.items() if count > add[rid]])
+
     @staticmethod 
     def _parse_rids(rids):
         rids = sorted(rids)
@@ -127,71 +166,7 @@ class Operation():
         result.append((start, length)) 
 
         return result
-
-    def parse(self):
-        while self.stmts:
-            stmt = self.stmts.pop(0)
-            self.history.append(stmt)
-            self._parse_stmt(stmt)
-        self._remove_overlapping_rids()
-        self.save_operation()
-    
-    @contextmanager
-    def dry_parse(self):
-        add_rids = self.add_rids
-        remove_rids = self.remove_rids
-        for stmt in self.stmts:
-            self._parse_stmt(stmt)
-        self._remove_overlapping_rids()
-        yield None
-        self.add_rids = add_rids
-        self.remove_rids = remove_rids
-    
-    def _parse_stmt(self, stmt):
-        op, args, timestamp = stmt
-        if op == "insert":
-            start_rid, num_rids = args
-            self.add_rids.extend(range(start_rid, start_rid + num_rids))
-        elif op == "delete":
-            start_rid, num_rids = args
-            self.remove_rids.extend(range(start_rid, start_rid + num_rids))
-        elif op == "update":
-            delete, insert, mapping = args
-            self._parse_stmt(delete)
-            self._parse_stmt(insert)
-
-    # @staticmethod
-    # def _return_parsed_stmt(stmt, add_rids, remove_rids):
-    #     def __return_parsed_stmt(stmt):
-    #         op, args, timestamp = stmt
-    #         if op == "insert":
-    #             start_rid, num_rids = args
-    #             add_rids.extend(range(start_rid, start_rid + num_rids))
-    #         elif op == "delete":
-    #             start_rid, num_rids = args
-    #             remove_rids.extend(range(start_rid, start_rid + num_rids))
-    #         elif op == "update":
-    #             delete, insert = args
-    #             __return_parsed_stmt(delete)
-    #             __return_parsed_stmt(insert)
-    #     __return_parsed_stmt(stmt)
-    #     return add_rids, remove_rids
-
-    def _remove_overlapping_rids(self):
-        # Didn't use set because same entries can be inserted and deleted and then inserted.
-        add = Counter(self.add_rids)
-        remove = Counter(self.remove_rids)
-        self.add_rids = sorted([rid for rid, count in add.items() if count > remove[rid]])
-        self.remove_rids = sorted([rid for rid, count in remove.items() if count > add[rid]])
-
-    # @staticmethod 
-    # def _return_remove_overlapping_rids(add_rids, remove_rids):
-    #     add = Counter(add_rids)
-    #     remove = Counter(remove_rids)
-    #     add_rids = sorted([rid for rid, count in add.items() if count > remove[rid]])
-    #     remove_rids = sorted([rid for rid, count in remove.items() if count > add[rid]])
-    #     return add_rids, remove_rids
-
+        
     @staticmethod 
     def _merge_changes(stmts):
         history = Operation._construct_history(stmts)
@@ -232,8 +207,9 @@ class Operation():
     def _find_conflicts(changes_1, changes_2):
         conflicts = {}
         for rid, (change_to, timestamp) in changes_1.items():
-            if not changes_2[rid]:
-                continue
-            if changes_2[rid][0] != change_to:
-                conflicts[rid] = [(change_to, timestamp), changes_2[rid]]
+            try:
+                if changes_2[rid][0] != change_to:
+                    conflicts[rid] = [(change_to, timestamp), changes_2[rid]]
+            except KeyError:
+                pass
         return conflicts

@@ -20,13 +20,13 @@ class VersionTable():
     def load_version_table(self, table_name):
         self.table_name = table_name
 
-    def add_version(self, operations: Operation, version, parent):
+    def add_version(self, operation: Operation, version, parent):
         # MySQL doesn't support array
         # Insert relations as multiple new rows
         rids = set(self.get_version_rids(parent))
-        for rid in operations.add_rids:
+        for rid in operation.add_rids:
             rids.add(rid)
-        for rid in operations.remove_rids:
+        for rid in operation.remove_rids:
             rids.remove(rid)
         rids = sorted(list(rids))
         values = [(version, rid) for rid in rids]

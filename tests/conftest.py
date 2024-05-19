@@ -39,6 +39,13 @@ def cnx():
         yield None
 
 
+@pytest.fixture(scope="session")
+def tempdir():
+    with tempfile.TemporaryDirectory(dir="./tests") as dir:
+        temp_dir = Path(dir)
+        yield temp_dir
+
+
 def _drop_table_if_exists(cnx):
     cnx.execute(f"DROP TABLE IF EXISTS {TEST_TABLE_NAME}{DATA_TABLE_SUFFIX}")
     cnx.execute(f"DROP TABLE IF EXISTS {TEST_TABLE_NAME}{HEAD_SUFFIX}")
@@ -89,15 +96,27 @@ def table_for_merge(cnx):
     version_data.remove()    
 
 
-@pytest.fixture(scope="session")
-def tempdir():
-    with tempfile.TemporaryDirectory(dir="./tests") as dir:
-        global TEMP_DIR
-        temp_dir = Path(dir)
-        TEMP_DIR = temp_dir
-        yield temp_dir
-        del TEMP_DIR
-
+@pytest.fixture(scope="function")
+def larger_table_for_merge(cnx):
+    _drop_table_if_exists(cnx)
+    version_data = VersionData(cnx)
+    version_data.init_table(TEST_TABLE_NAME, "./tests/test_data/sample_schema.csv")
+    now = datetime.now()
+    version_data.from_file("insert", "./tests/test_data/data_1.csv")
+    version_data.commit(msg="version_1", now=now)
+    version_data.from_file("insert", "./tests/test_data/data_2.csv")
+    version_data.commit(msg="version_2", now=now)
+    version_data.from_file("update", ["./tests/test_data/data_2.csv", "./tests/test_data/data_3.csv"])
+    version_data.commit(msg="version_3", now=now)
+    version_data.from_file("delete", "./tests/test_data/data_1.csv")
+    version_data.commit(msg="version_4", now=now)
+    version_data.checkout(1)
+    version_data.from_file("update", ["./tests/test_data/data_1.csv", "./tests/test_data/data_4.csv"])
+    version_data.commit(msg="version_5", now=now)
+    version_data.from_file("insert", "./tests/test_data/data_2.csv")
+    version_data.commit(msg="version_6", now=now)
+    yield version_data
+    version_data.remove()       
 
 @dataclass
 class Args:
@@ -107,26 +126,29 @@ class Args:
 
 
 class Utils():
+    def __init__(self, tempdir):
+        Utils.tempdir = tempdir
+
     @staticmethod
     def check_version_table(version):
         input = f"SELECT * FROM VTABLE {TEST_TABLE_NAME} OF VERSION {version}"
-        args = Args(input=input, output=TEMP_DIR / "output.csv")
+        args = Args(input=input, output=Utils.tempdir / "output.csv")
         run(args)
 
     @staticmethod
     def check_head():
         input = f"SELECT * FROM {TEST_TABLE_NAME}{HEAD_SUFFIX}"
-        args = Args(input=input, output=TEMP_DIR / "output.csv")
+        args = Args(input=input, output=Utils.tempdir / "output.csv")
         run(args)
 
     @staticmethod
     def read_result():
-        with open(TEMP_DIR / "output.csv", newline="") as f:
+        with open(Utils.tempdir / "output.csv", newline="") as f:
             reader = csv.reader(f)
             data = list(reader)
         return data
 
 
 @pytest.fixture(scope="session")
-def func():
-    return Utils()
+def func(tempdir):
+    yield Utils(tempdir)
