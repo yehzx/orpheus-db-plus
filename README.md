@@ -25,7 +25,7 @@ relational databases. We currently decide to use MySQL as the backend database.
 3. Run `orpheusplus config` again to configure the user information and change the default settings if needed. (Please make sure that the MySQL service is running.)
 
 ### Usage
-> If you encounter any errors, please run `orpheusplus remove -n TABLE_NAME`, `git pull` the latest update, and then try the operations again. If errors still occur, it is likely a bug.  
+> If you encounter any errors, please run `orpheusplus drop -n TABLE_NAME --all` to clean up the corrupted table, `git pull` the latest update, and then try the operations again. If errors still occur, it is likely a bug.  
 
 1. Initialize a version table
     ```
@@ -54,7 +54,7 @@ relational databases. We currently decide to use MySQL as the backend database.
 5. Run an example script to get the data from the current version 
     ```
     # Current version: 1
-    orpheusplus run -i ./examples/sql_script_1.sql
+    orpheusplus run -f ./examples/sql_script_1.sql
 
     ╒═══════════════╤═══════╤══════════╕
     │   employee_id │   age │   salary │
@@ -68,7 +68,7 @@ relational databases. We currently decide to use MySQL as the backend database.
 
     # Check out to version 2
     orpheusplus checkout -n new_table -v 2
-    orpheusplus run -i ./examples/sql_script_1.sql
+    orpheusplus run -f ./examples/sql_script_1.sql
 
     ╒═══════════════╤═══════╤══════════╕
     │   employee_id │   age │   salary │
@@ -88,13 +88,13 @@ relational databases. We currently decide to use MySQL as the backend database.
     ```
 6. Drop the version table
     ```
-    orpheusplus remove -n new_table
+    orpheusplus drop -n new_table --all
     ```
 
 
 **Available commands:**
 ```
-usage: orpheusplus [-h] {config,init,ls,remove,checkout,commit,insert,delete,update,run} ...
+usage: orpheusplus [-h] {config,init,ls,log,drop,checkout,commit,merge,insert,delete,update,run} ...
 
 options:
   -h, --help            show this help message and exit
@@ -102,13 +102,15 @@ options:
 commands:
   valid commands
 
-  {config,init,ls,remove,checkout,commit,insert,delete,update,run}
+  {config,init,ls,log,drop,checkout,commit,merge,insert,delete,update,run}
     config              Configure MySQL connection
     init                Initialize version control to a table
     ls                  List all tables under version control
-    remove              Drop a version table
-    checkout            Checkout a version
+    log                 List all versions of a table
+    drop                Drop a version table
+    checkout            Switch to a version
     commit              Create a new version
+    merge               Combine two versions
     insert              Insert data from file
     delete              Delete data from file
     update              Update data from file
