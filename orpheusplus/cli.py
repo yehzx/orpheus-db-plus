@@ -285,7 +285,7 @@ def drop(args):
             print(f"Drop `{args.name}`")
         else:
             table.remove(keep_current=True)
-            print(f"Drop version control to `{args.name}`. Fall back to normal table.")
+            print(f"Drop version control to `{args.name}`. Fall back to a normal table `{args.name} in MySQL.")
     else:
         print(f"Keep `{args.name}`")
 
