@@ -4,14 +4,17 @@ Reference:
 ORPHEUSDB: Bolt-on Versioning for Relational Databases
 (https://www.vldb.org/pvldb/vol10/p1130-huang.pdf)
 """
-import sys
 import csv
+import sys
 import time
 from datetime import datetime
-from orpheusplus.utils import parse_commit, match_column_order, reorder_data, parse_csv_data, parse_csv_structure, parse_table_types
+from pathlib import Path
 from orpheusplus import LOG_DIR
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.operation import Operation
+from orpheusplus.utils import (match_column_order, parse_commit,
+                               parse_csv_data, parse_csv_structure,
+                               parse_table_types, reorder_data)
 from orpheusplus.version_graph import VersionGraph
 
 DATA_TABLE_SUFFIX = "_orpheusplus"
@@ -59,6 +62,19 @@ class VersionData():
     def _create_operation(self):
         self.operation = Operation()
         self.operation.init_operation(self.db_name, self.table_name, self.get_current_version())
+    
+    def from_table(self, from_table, to_table):
+        table_structure = self._get_table_types(from_table)
+        rows = [[col, col_type] for col, col_type in table_structure.items()]
+        try:
+            temp_csv_filepath = Path("./temp_table_structure.csv")
+            with open(temp_csv_filepath, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerows(rows)
+            self.init_table(to_table, temp_csv_filepath)
+        except Exception as e:
+            print(e)
+        temp_csv_filepath.unlink()
 
     def load_table(self, table_name):
         self.table_name = table_name
@@ -459,8 +475,10 @@ class VersionData():
         reordered_data = reorder_data(data, order)
         return reordered_data
     
-    def _get_table_types(self):
-        schema = self.cnx.execute(f"SHOW COLUMNS FROM `{self.table_name}{self.data_table_suffix}`")
+    def _get_table_types(self, table_name=None):
+        if table_name is None:
+            table_name = self.table_name + self.data_table_suffix
+        schema = self.cnx.execute(f"SHOW COLUMNS FROM `{table_name}`")
         type_dict = parse_table_types(schema) 
         return type_dict
     

@@ -123,6 +123,7 @@ class Args:
     input: str
     output: str | None = None
     file = None
+    no_headers = False
 
 
 class Utils():

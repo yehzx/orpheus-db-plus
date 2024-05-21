@@ -1,6 +1,6 @@
 import argparse
 import sys
-
+from pathlib import Path
 
 def main():
     args = parse_args(sys.argv[1:])
@@ -22,8 +22,9 @@ def setup_argparsers():
     config_parser.set_defaults(func=dbconfig)
 
     init_parser = subparsers.add_parser("init", help="Initialize version control to a table")
-    init_parser.add_argument("-n", "--name", required=True, help="table name")
-    init_parser.add_argument("-s", "--structure", required=True, help="table structure")
+    init_parser.add_argument("-n", "--name", required=True, help="version table name")
+    init_parser.add_argument("-s", "--structure", help="table structure")
+    init_parser.add_argument("-t", "--table", help="table name for an existing table")
     init_parser.set_defaults(func=init_table)
 
     ls_parser = subparsers.add_parser("ls", help="List all tables under version control")
@@ -83,6 +84,8 @@ def setup_argparsers():
     run_parser.add_argument("-f", "--file", help="script path")
     run_parser.add_argument("-i", "--input", help="SQL statement")
     run_parser.add_argument("-o", "--output", help="output file path")
+    run_parser.add_argument("--no_headers", action="store_true",
+                            help="don't save headers to the output file")
     run_parser.set_defaults(func=run) 
 
     return parser
@@ -218,8 +221,29 @@ def log(args):
 
 def init_table(args):
     table = _connect_table()
-    table.init_table(args.name, args.structure)
-    print(f"Table `{args.name}` initialized successfully.")
+    if args.table is None:
+        table.init_table(args.name, args.structure)
+        print(f"Table `{args.name}` initialized successfully.")
+    else:
+        if args.name is None:
+            print("Please specify a table name by `-n`.")
+            sys.exit()
+        temp_data_path = Path("./temp_data.csv")
+        table.from_table(from_table=args.table, to_table=args.name)
+        try:
+            setattr(args, "input", f"SELECT * FROM {args.table}")
+            setattr(args, "file", None)
+            setattr(args, "output", temp_data_path)
+            setattr(args, "no_headers", True)
+            run(args)
+            setattr(args, "op", "insert")
+            setattr(args, "data", temp_data_path)
+            manipulate(args)
+            print(f"Table `{args.name}` initialized successfully from `{args.table}`.",
+                  "Please commit it if you want the current data be the first version.")
+        except Exception as e:
+            print(e)
+        temp_data_path.unlink()
 
 
 def checkout(args):
@@ -300,7 +324,6 @@ def dump(args):
 
 def run(args):
     import csv
-    from pathlib import Path
 
     from tabulate import tabulate
 
@@ -348,7 +371,8 @@ def run(args):
             result = _handle_result(result, mydb)
             if args.output is not None:
                 output = result["data"]
-                output.insert(0, result["field"])
+                if not args.no_headers:
+                    output.insert(0, result["field"])
                 count = _write_csv(output, args.output)
             else:
                 print(ori_stmt)
