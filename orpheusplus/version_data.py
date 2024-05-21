@@ -387,6 +387,13 @@ class VersionData():
             self.cnx.execute(f"RENAME TABLE {self.table_name}{self.head_suffix} TO {self.table_name}")
         else:
             self.cnx.execute(f"DROP TABLE {self.table_name}{self.head_suffix}")
+    
+    def dump(self, new_table_name=None):
+        if new_table_name is None:
+            new_table_name = self.table_name
+        self.cnx.execute(f"CREATE TABLE {new_table_name} LIKE {self.table_name}{self.head_suffix}")
+        self.cnx.execute(f"INSERT INTO {new_table_name} SELECT * FROM {self.table_name}{self.head_suffix}")
+        self.cnx.commit()
 
     def parse_log(self):
         parsed_commits = []

@@ -41,6 +41,11 @@ def setup_argparsers():
     drop_parser.add_argument("-y", "--yes", action="store_true", help="confirm dropping")
     drop_parser.set_defaults(func=drop)
 
+    dump_parser = subparsers.add_parser("dump", help="Dump a normal table of the current version table")
+    dump_parser.add_argument("-n", "--name", required=True, help="version table name")
+    dump_parser.add_argument("-t", "--table", help="table name for the dumpped table")
+    dump_parser.set_defaults(func=dump)
+
     checkout_parser = subparsers.add_parser("checkout", help="Switch to a version")
     checkout_parser.add_argument("-n", "--name", required=True, help="table name")
     checkout_parser.add_argument("-v", "--version", required=True, help="version number or `head`")
@@ -284,6 +289,13 @@ def drop(args):
     else:
         print(f"Keep `{args.name}`")
 
+
+def dump(args):
+    new_table_name = args.table if args.table is not None else args.name
+    table = _connect_table()
+    table.load_table(args.name)
+    table.dump(new_table_name)
+    print(f"Dump the version table `{args.name}` to `{args.table}` in MySQL.")
 
 
 def run(args):
