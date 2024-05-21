@@ -304,12 +304,16 @@ def drop(args):
         (LOG_DIR / args.name).unlink(missing_ok=True)
         table = _connect_table()
         table.load_table(args.name)
-        if args.all:
+        ans_save = None
+        while ans_save not in ["y", "n"]:
+            ans_save = input(f"Save a normal table copy of the version table in MySQL? (y/n)\n")
+        if args.all or ans_save == "n":
             table.remove()
             print(f"Drop `{args.name}`")
         else:
+            new_table_name = input("Enter a new table name: ")
             table.remove(keep_current=True)
-            print(f"Drop version control to `{args.name}`. Fall back to a normal table `{args.name} in MySQL.")
+            print(f"Drop version control to `{args.name}`. Fall back to a normal table `{new_table_name}` in MySQL.")
     else:
         print(f"Keep `{args.name}`")
 

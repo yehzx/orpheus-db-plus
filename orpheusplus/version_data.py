@@ -395,15 +395,15 @@ class VersionData():
         self._save_log(**commit_info)
     
     def remove(self, keep_current=False):
-        self.version_graph.remove()
-        self.operation.remove()
-        self._remove_log()
-        self.cnx.execute(f"DROP TABLE {self.table_name}{self.data_table_suffix}")
         if keep_current:
             self.cnx.execute(f"RENAME TABLE {self.table_name}{self.head_suffix} TO {self.table_name}")
             self.cnx.execute(f"ALTER TABLE {self.table_name} DROP COLUMN rid")
         else:
             self.cnx.execute(f"DROP TABLE {self.table_name}{self.head_suffix}")
+        self.cnx.execute(f"DROP TABLE {self.table_name}{self.data_table_suffix}")
+        self.version_graph.remove()
+        self.operation.remove()
+        self._remove_log()
     
     def dump(self, new_table_name=None):
         if new_table_name is None:
