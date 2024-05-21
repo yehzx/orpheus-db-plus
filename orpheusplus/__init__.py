@@ -65,6 +65,7 @@ def _check_metadata():
     USER_PATH.touch(exist_ok=True)
     VERSIONGRAPH_DIR.mkdir(exist_ok=True)
     OPERATION_DIR.mkdir(exist_ok=True)
-    LOG_DIR = meta / "log"
+    LOG_DIR.mkdir(exist_ok=True)
+
 
 import_check()
