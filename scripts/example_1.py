@@ -11,7 +11,7 @@ def command(stmt):
     print(f"{YELLOW}{stmt}{OFF}")
     result = subprocess.run(stmt, capture_output=True, text=True, encoding="utf-8")
     print(result.stdout, end="")
-    time.sleep(2)
+    # time.sleep(2)
     
 
 command("orpheusplus ls")
@@ -26,4 +26,4 @@ command("orpheusplus checkout -n new_table -v 1")
 command('orpheusplus run -i "SELECT * FROM VTABLE new_table"')
 command("orpheusplus ls")
 command("orpheusplus log -n new_table")
-command("orpheusplus drop -n new_table --all -y")
+# command("orpheusplus drop -n new_table --all -y")
