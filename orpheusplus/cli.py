@@ -304,7 +304,7 @@ def drop(args):
         (LOG_DIR / args.name).unlink(missing_ok=True)
         table = _connect_table()
         table.load_table(args.name)
-        ans_save = None
+        ans_save = "y" if args.yes else None
         while ans_save not in ["y", "n"]:
             ans_save = input(f"Save a normal table copy of the version table in MySQL? (y/n)\n")
         if args.all or ans_save == "n":
