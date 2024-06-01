@@ -3,7 +3,7 @@ from orpheusplus.utils import *
 
 def test_parse_csv_structure():
     result = parse_csv_structure("./examples/sample_schema.csv")
-    expected = "employee_id int, age int, salary int"
+    expected = [["employee_id", "int"], ["age", "int"], ["salary", "int"]]
     assert result == expected, f"result: {result}\nexpected: {expected}"
 
 
