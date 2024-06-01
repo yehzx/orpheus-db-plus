@@ -230,19 +230,17 @@ def init_table(args):
             sys.exit()
         temp_data_path = Path("./temp_data.csv")
         table.from_table(from_table=args.table, to_table=args.name)
-        try:
-            setattr(args, "input", f"SELECT * FROM {args.table}")
-            setattr(args, "file", None)
-            setattr(args, "output", temp_data_path)
-            setattr(args, "no_headers", True)
-            run(args)
-            setattr(args, "op", "insert")
-            setattr(args, "data", temp_data_path)
-            manipulate(args)
-            print(f"Table `{args.name}` initialized successfully from `{args.table}`.",
-                  "Please commit it if you want the current data be the first version.")
-        except Exception as e:
-            print(e)
+        
+        setattr(args, "input", f"SELECT * FROM {args.table}")
+        setattr(args, "file", None)
+        setattr(args, "output", temp_data_path)
+        setattr(args, "no_headers", True)
+        run(args)
+        setattr(args, "op", "insert")
+        setattr(args, "data", temp_data_path)
+        manipulate(args)
+        print(f"Table `{args.name}` initialized successfully from `{args.table}`.",
+                "Please commit it if you want the current data be the first version.")
         temp_data_path.unlink()
 
 
@@ -339,7 +337,7 @@ def run(args):
             path = Path(path)
             path.unlink(missing_ok=True)
         
-        with open(path, "a", newline="") as f:
+        with open(path, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerows(data)
         
@@ -351,6 +349,8 @@ def run(args):
         if field[0] == "rid":
             field = field[1:]
             data = [row[1:] for row in result]
+        else:
+            data = result
         return {"field": field, "data": data} 
 
     def _print_result(data, field=None):
@@ -369,8 +369,9 @@ def run(args):
     else:
         raise Exception("No input provided.")
     # TODO: Refactor this block. `stmt` is either string or a dict here, make it consistent
+    count = 0
     for is_modified, ori_stmt, stmt, op in zip(parser.is_modified, parser.stmts, parser.parsed, parser.operations):
-        if op == "select" or not is_modified:
+        if op == "select":
             result = mydb.execute(stmt)
             result = _handle_result(result, mydb)
             if args.output is not None:
@@ -382,6 +383,8 @@ def run(args):
                 print(ori_stmt)
                 _print_result(result["data"], result["field"])
                 print()
+        elif not is_modified:
+            result = mydb.execute(stmt)
         elif op in ("insert", "delete", "update"):
             table.load_table(stmt["table_name"])
             table.from_parsed_data(op, stmt["attributes"])

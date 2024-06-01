@@ -38,7 +38,8 @@ class VersionData():
 
         # Initialize data table
         # rid: as an index for each relation
-        cols = "rid INT PRIMARY KEY, " + table_structure
+        stmt_structure = ", ".join([f"`{each_col[0]}` {each_col[1]}" for each_col in table_structure])
+        cols = "rid INT PRIMARY KEY, " + stmt_structure
         stmt = f"CREATE TABLE {table_name}{self.data_table_suffix} ({cols})"
         self.cnx.execute(stmt) 
 
@@ -68,7 +69,7 @@ class VersionData():
         rows = [[col, col_type] for col, col_type in table_structure.items()]
         try:
             temp_csv_filepath = Path("./temp_table_structure.csv")
-            with open(temp_csv_filepath, "w", newline="") as f:
+            with open(temp_csv_filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerows(rows)
             self.init_table(to_table, temp_csv_filepath)
@@ -241,7 +242,7 @@ class VersionData():
     
     def from_parsed_data(self, operation, attrs):
         if operation == "insert":
-            data = self._match_table_column(attrs["column"], attrs["data"])
+            data = self._match_table_column(attrs["columns"], attrs["data"])
             self.insert(data)
         elif operation == "delete":
             self.delete_from_sql(attrs["where"])
@@ -307,7 +308,6 @@ class VersionData():
         self.cnx.execute(stmt)
         self.cnx.commit()
         self.operation.delete(total_rids)
-
         return delete_rids
     
     def select_by_rid(self, rid):
@@ -319,8 +319,10 @@ class VersionData():
         return [each[1:] for each in result]
     
     def delete_from_sql(self, where, return_data=False):
+        # TODO: split where stmt if not = but IN
+        # TODO: rids should be a double layered list as in delete
         stmt = (
-            f"SELECT rid FROM {self.table_name}{self.head_suffix} "
+            f"SELECT * FROM {self.table_name}{self.head_suffix} "
             f"{where}"
         )   
         result = self.cnx.execute(stmt)
@@ -356,8 +358,8 @@ class VersionData():
         self.operation.update(delete_rids, insert_rids)
     
     def _get_insert_rids(self):
-        assert self.operation.stmts[-1][0] == "insert"
-        _, (start, num), _ = self.operation.stmts[-1] 
+        assert self.operation.stmts[-1][0] == "insert", self.operation.stmts
+        _, (start, num), _ = self.operation.stmts[-1]
         insert_rids = list(range(start, start + num))
         return insert_rids        
     
@@ -382,12 +384,19 @@ class VersionData():
         if not (add_rids or remove_rids):
             print("No revision to the last version. Abort commit.")
             sys.exit()
-        if add_rids:
+
+        if add_rids: 
             stmt = (
                 f"INSERT INTO {self.table_name}{self.data_table_suffix} "
                 f"SELECT * FROM {self.table_name}{self.head_suffix} "
-                f"WHERE rid IN {add_rids}"
             )
+            if len(add_rids) == 1:
+                add_rid = add_rids[0]
+                where_stmt = f"WHERE rid = {add_rid}"
+            elif len(add_rids) > 1:
+                where_stmt = f"WHERE rid IN {add_rids}"
+            stmt += where_stmt
+
             self.cnx.execute(stmt)
             self.cnx.commit()
         self.version_graph.add_version(self.operation, **commit_info)

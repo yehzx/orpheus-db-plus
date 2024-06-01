@@ -1,33 +1,32 @@
+import os
 import subprocess
-import time
 
-YELLOW = "\033[93m"
-CYAN = "\033[96m"
-OFF = "\033[00m"
+from orpheusplus.command_utils import command
 
-subprocess.run("cls", shell=True)
+if os.name == "nt":
+    subprocess.run("cls", shell=True)
+elif os.name == "posix":
+    subprocess.run("clear", shell=True)
 
-def command(stmt):
-    print(f"{YELLOW}{stmt}{OFF}")
-    result = subprocess.run(stmt, capture_output=True, text=True, encoding="utf-8")
-    print(result.stdout, end="")
-    # time.sleep(2)
-    
+command("orpheusplus init -n new_table -s ./examples/sample_schema.csv")
+command("orpheusplus insert -n new_table -d ./examples/data_1.csv")
+command("orpheusplus commit -n new_table -m version_1")
+command("orpheusplus insert -n new_table -d ./examples/data_2.csv")
+command("orpheusplus commit -n new_table -m version_2")
+command("orpheusplus delete -n new_table -d ./examples/data_2.csv")
+command("orpheusplus commit -n new_table -m version_3")
+command("orpheusplus update -n new_table -d ./examples/data_1.csv ./examples/data_3.csv")
+command("orpheusplus commit -n new_table -m version_4")
+command("orpheusplus checkout -n new_table -v 1")
+command("orpheusplus delete -n new_table -d ./examples/data_1.csv")
+command("orpheusplus insert -n new_table -d ./examples/data_2.csv")
+command("orpheusplus commit -n new_table -m version_5")
+command("orpheusplus log -n new_table", sleep=3)
+command('orpheusplus run -i "SELECT * FROM VTABLE new_table"', sleep=3)
+command('orpheusplus run -i "SELECT * FROM VTABLE new_table OF VERSION 4"', sleep=3)
+command("orpheusplus merge -n new_table -v 4", sleep=3)
+command("orpheusplus merge -n new_table -v 4 -r ./examples/example_conflicts.csv", sleep=3)
+command("orpheusplus log -n new_table", sleep=3)
+command('orpheusplus run -i "SELECT * FROM VTABLE new_table"', sleep=3)
+command("orpheusplus drop -n new_table --all -y")
 
-command("orpheusplus ls")
-command("orpheusplus init -n test_merge -s ./examples/sample_schema.csv")
-command("orpheusplus insert -n test_merge -d ./examples/data_1.csv")
-command("orpheusplus commit -n test_merge -m version_1")
-command("orpheusplus insert -n test_merge -d ./examples/data_2.csv")
-command("orpheusplus commit -n test_merge -m version_2")
-command("orpheusplus update -n test_merge -d ./examples/data_2.csv ./examples/data_3.csv")
-command("orpheusplus commit -n test_merge -m version_3")
-command("orpheusplus delete -n test_merge -d ./examples/data_1.csv")
-command("orpheusplus commit -n test_merge -m version_4")
-command("orpheusplus checkout -n test_merge -v 1")
-command("orpheusplus update -n test_merge -d ./examples/data_1.csv ./examples/data_4.csv")
-command("orpheusplus commit -n test_merge -m version_5")
-command("orpheusplus insert -n test_merge -d ./examples/data_2.csv")
-command("orpheusplus commit -n test_merge -m version_6")
-command("orpheusplus log -n test_merge")
-command("orpheusplus merge -n test_merge -v 4")

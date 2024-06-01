@@ -19,7 +19,7 @@ class SQLParser():
         self.is_modified = []
     
     def parse_file(self, filepath):
-        with open(filepath, 'r') as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             sql = f.read()
         self.parse(sql)
     
@@ -253,7 +253,7 @@ class SQLParser():
             tokens = SQLParser._strip_unwanted_tokens(tokens)
             for idx, token in enumerate(tokens):
                 if token.match(sqlparse.tokens.Operator.Comparison, "="):
-                    parsed[tokens[idx - 1].value] = tokens[idx + 1].value
+                    parsed[tokens[idx - 1].value.strip("`")] = tokens[idx + 1].value
             return parsed
 
         parsed = {}

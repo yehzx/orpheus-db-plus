@@ -1,6 +1,8 @@
-import re
 import csv
+import re
+import sys
 from collections import OrderedDict
+
 
 def parse_commit(commit):
     lines = commit.split("\n")
@@ -17,19 +19,20 @@ def parse_table_types(schema):
         type_dict[col[0]] = col[1].decode()
     return type_dict
 
-def parse_csv_structure(filepath):
-    stmt = ""
-    with open(filepath, newline="") as f:
+def parse_csv_structure(filepath) -> list:
+    cols = []
+    with open(filepath, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         for row in reader:
-            stmt += " ".join(row)
-            stmt += ", "
-        stmt = stmt.rstrip(", ")
-    return stmt 
+            if len(row) != 2:
+                print("Invalid data schema, should be COLUMN_NAME,DATA_TYPE")
+                sys.exit()
+            cols.append(row)
+    return  cols
 
 def parse_csv_data(filepath):
     data = []
-    with open(filepath, newline="") as f:
+    with open(filepath, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         data = list(reader)
     return data    

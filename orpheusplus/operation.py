@@ -71,6 +71,9 @@ class Operation():
         delete_stmt = self.stmts.pop()
         mapping = {}
         for insert, delete in zip(insert_list, delete_list):
+            # TODO: make `delete` always a list at the beginning, not here
+            if isinstance(delete, int):
+                delete = [delete]
             for each_delete_rid in delete:
                 mapping[each_delete_rid] = insert
 
