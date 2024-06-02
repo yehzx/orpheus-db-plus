@@ -4,7 +4,7 @@ from pathlib import Path
 
 def main():
     args = parse_args(sys.argv[1:])
-    args.func(args)
+    args.func(vars(args))
 
 
 def parse_args(args):
@@ -206,11 +206,11 @@ def log(args):
     off = "\033[00m"
 
     table = _connect_table()
-    table.load_table(args.name)
+    table.load_table(args["name"])
     parsed_commits = table.parse_log()
 
     msg = "" 
-    if args.oneline:
+    if args["oneline"]:
         for commit in parsed_commits:
             msg += f"{yellow}{commit['version']:<4}{off}"
             if commit["version"] == str(table.version_graph.head):
@@ -229,37 +229,38 @@ def log(args):
 
 def init_table(args):
     table = _connect_table()
-    if args.table is None:
-        table.init_table(args.name, args.structure)
-        print(f"Table `{args.name}` initialized successfully.")
+    if args["table"] is None:
+        table.init_table(args["name"], args["structure"])
+        print(f"Table `{args['name']}` initialized successfully.")
     else:
-        if args.name is None:
+        if args["name"] is None:
             print("Please specify a table name by `-n`.")
             sys.exit()
         temp_data_path = Path("./temp_data.csv")
-        table.from_table(from_table=args.table, to_table=args.name)
+        table.from_table(from_table=args["table"], to_table=args["name"])
         
-        setattr(args, "input", f"SELECT * FROM {args.table}")
-        setattr(args, "file", None)
-        setattr(args, "output", temp_data_path)
-        setattr(args, "no_headers", True)
+        args.update(input=f"SELECT * FROM {args['table']}",
+                    file=None,
+                    output=temp_data_path,
+                    no_headers=True)
         run(args)
-        setattr(args, "op", "insert")
-        setattr(args, "data", temp_data_path)
+
+        args.update(op="insert", data=temp_data_path)
         manipulate(args)
-        print(f"Table `{args.name}` initialized successfully from `{args.table}`.",
+
+        print(f"Table `{args['name']}` initialized successfully from `{args['table']}`.",
                 "Please commit it if you want the current data be the first version.")
         temp_data_path.unlink()
 
 
 def checkout(args):
     table = _connect_table()
-    table.load_table(args.name)
-    if args.version == "head":
+    table.load_table(args["name"])
+    if args["version"] == "head":
         version = table.get_current_version()
     else:
         try:
-            version = int(args.version)
+            version = int(args["version"])
         except ValueError:
             print("Invalid version number.")
             sys.exit()
@@ -273,63 +274,63 @@ def commit(args):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     table = _connect_table()
-    table.load_table(args.name)
-    table.commit(msg=args.message, now=now)
+    table.load_table(args["name"])
+    table.commit(msg=args["message"], now=now)
     head = table.version_graph.head
     print(f"Create version {head}.")
 
 
 def merge(args):
     table = _connect_table()
-    table.load_table(args.name)
+    table.load_table(args["name"])
     head = table.version_graph.head
     if not table.operation.is_empty():
         print("Please commit before merge.")
         sys.exit()
-    table.merge(args.version, args.resolved)
+    table.merge(args["version"], args["resolved"])
     new_head = table.version_graph.head
-    print(f"Merge version {head} and {args.version} into version {new_head}.")
+    print(f"Merge version {head} and {args['version']} into version {new_head}.")
 
 
 def manipulate(args):
     table = _connect_table()
-    table.load_table(args.name)
-    table.from_file(args.op, args.data)
-    print(f"{str(args.op).title()} from file {args.data}")
+    table.load_table(args["name"])
+    table.from_file(args["op"], args["data"])
+    print(f"{str(args['op']).title()} from file {args['data']}")
 
 
 def drop(args):
     from orpheusplus import LOG_DIR
 
-    if args.yes:
+    if args["yes"]:
         ans = "y"
     else:
-        ans = input(f"Do you really want to drop `{args.name}`? (y/n)\n")
+        ans = input(f"Do you really want to drop `{args['name']}`? (y/n)\n")
 
     if ans == "y":
-        (LOG_DIR / args.name).unlink(missing_ok=True)
+        (LOG_DIR / args["name"]).unlink(missing_ok=True)
         table = _connect_table()
-        table.load_table(args.name)
-        ans_save = "y" if args.yes else None
+        table.load_table(args["name"])
+        ans_save = "y" if args["yes"] else None
         while ans_save not in ["y", "n"]:
             ans_save = input(f"Save a normal table copy of the version table in MySQL? (y/n)\n")
-        if args.all or ans_save == "n":
+        if args["all"] or ans_save == "n":
             table.remove()
-            print(f"Drop `{args.name}`")
+            print(f"Drop `{args['name']}`")
         else:
             new_table_name = input("Enter a new table name: ")
             table.remove(keep_current=True)
-            print(f"Drop version control to `{args.name}`. Fall back to a normal table `{new_table_name}` in MySQL.")
+            print(f"Drop version control to `{args['name']}`. Fall back to a normal table `{new_table_name}` in MySQL.")
     else:
-        print(f"Keep `{args.name}`")
+        print(f"Keep `{args['name']}`")
 
 
 def dump(args):
-    new_table_name = args.table if args.table is not None else args.name
+    new_table_name = args["table"] if args["table"] is not None else args["name"]
     table = _connect_table()
-    table.load_table(args.name)
+    table.load_table(args["name"])
     table.dump(new_table_name)
-    print(f"Dump the version table `{args.name}` to `{args.table}` in MySQL.")
+    print(f"Dump the version table `{args['name']}` to `{args['table']}` in MySQL.")
 
 
 def run(args):
@@ -370,10 +371,10 @@ def run(args):
     table = _connect_table()
     mydb = table.cnx
     parser = SQLParser()
-    if args.file is not None:
-        parser.parse_file(args.file)
-    elif args.input is not None:
-        parser.parse(args.input)
+    if args["file"] is not None:
+        parser.parse_file(args["file"])
+    elif args["input"] is not None:
+        parser.parse(args["input"])
     else:
         raise Exception("No input provided.")
     # TODO: Refactor this block. `stmt` is either string or a dict here, make it consistent
@@ -382,11 +383,11 @@ def run(args):
         if op == "select":
             result = mydb.execute(stmt)
             result = _handle_result(result, mydb)
-            if args.output is not None:
+            if args["output"] is not None:
                 output = result["data"]
-                if not args.no_headers:
+                if not args["no_headers"]:
                     output.insert(0, result["field"])
-                count = _write_csv(output, args.output)
+                count = _write_csv(output, args["output"])
             else:
                 print(ori_stmt)
                 _print_result(result["data"], result["field"])
@@ -397,8 +398,8 @@ def run(args):
             table.load_table(stmt["table_name"])
             table.from_parsed_data(op, stmt["attributes"])
 
-    if args.output is not None:
-        print(f"Save results of {count} statements to {args.output}")
+    if args["output"] is not None:
+        print(f"Save results of {count} statements to {args['output']}")
 
 
 if __name__ == "__main__":

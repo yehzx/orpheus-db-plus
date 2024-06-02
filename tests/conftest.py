@@ -1,6 +1,5 @@
 import csv
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -118,29 +117,25 @@ def larger_table_for_merge(cnx):
     yield version_data
     version_data.remove()       
 
-@dataclass
-class Args:
-    input: str
-    output: str | None = None
-    file = None
-    no_headers = False
-
 
 class Utils():
-    def __init__(self, tempdir):
+    args = dict(input=None, output=None, file=None, no_headers=False)
+
+    @staticmethod
+    def _set_tempdir(tempdir):
         Utils.tempdir = tempdir
 
     @staticmethod
     def check_version_table(version):
         input = f"SELECT * FROM VTABLE {TEST_TABLE_NAME} OF VERSION {version}"
-        args = Args(input=input, output=Utils.tempdir / "output.csv")
-        run(args)
+        Utils.args.update(input=input, output=Utils.tempdir / "output.csv")
+        run(Utils.args)
 
     @staticmethod
     def check_head():
         input = f"SELECT * FROM {TEST_TABLE_NAME}{HEAD_SUFFIX}"
-        args = Args(input=input, output=Utils.tempdir / "output.csv")
-        run(args)
+        Utils.args.update(input=input, output=Utils.tempdir / "output.csv")
+        run(Utils.args)
 
     @staticmethod
     def read_result():
@@ -152,4 +147,6 @@ class Utils():
 
 @pytest.fixture(scope="session")
 def func(tempdir):
-    yield Utils(tempdir)
+    utils = Utils()
+    utils._set_tempdir(tempdir)
+    yield utils 
