@@ -110,6 +110,7 @@ def _connect_table():
 def dbconfig(args):
     import maskpass
     import yaml
+    import shutil
 
     from orpheusplus import DEFAULT_DIR, ORPHEUSPLUS_CONFIG
     from orpheusplus.exceptions import MySQLConnectionError
@@ -129,6 +130,7 @@ def dbconfig(args):
     print(f"Current orpheusplus directory: {root_dir} (press 'enter' to skip)")
     res = input("Enter orpheusplus directory: ")
     ORPHEUSPLUS_CONFIG["orpheusplus_root_dir"] = res if res != "" else root_dir
+
 
     try:
         user = UserManager()
@@ -156,10 +158,7 @@ def dbconfig(args):
         db_user = current_user
         user_passwd = current_passwd
 
-    # Save config
-    with open(DEFAULT_DIR / "config.yaml", "w", encoding="utf-8") as f:
-        yaml.dump(ORPHEUSPLUS_CONFIG, f)
-
+    UserManager.remove_user(current_user)
     UserManager.save_user(database=db_name, user=db_user, passwd=user_passwd)
 
     # Test connection
@@ -171,10 +170,19 @@ def dbconfig(args):
     except MySQLConnectionError as e:
         msg = (
             f"Connection failed. Please check your input.\n"
-            f"Reason: {e}"
+            f"Reason: {e.message}"
         )
-        raise Exception(msg)
-
+        print(msg)
+    
+    # Save config
+    with open(DEFAULT_DIR / "config.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(ORPHEUSPLUS_CONFIG, f)
+    
+    # Copy all files to the new root_dir
+    if ORPHEUSPLUS_CONFIG["orpheusplus_root_dir"] != root_dir:
+        shutil.copytree(root_dir + "/.meta", ORPHEUSPLUS_CONFIG["orpheusplus_root_dir"] + "/.meta") 
+        shutil.rmtree(root_dir + "/.meta")
+    
 
 def ls(args):
     from orpheusplus import VERSIONGRAPH_DIR
