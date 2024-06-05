@@ -1,10 +1,15 @@
 import argparse
 import sys
 from pathlib import Path
+from orpheusplus.connection import connect_table
+from orpheusplus.exceptions import MySQLError
 
 def main():
     args = parse_args(sys.argv[1:])
-    args.func(vars(args))
+    try:
+        args.func(vars(args))
+    except MySQLError as e:
+        print(e.msg)
 
 
 def parse_args(args):
@@ -28,10 +33,12 @@ def setup_argparsers():
     init_parser.set_defaults(func=init_table)
 
     ls_parser = subparsers.add_parser("ls", help="List all tables under version control")
+    ls_parser.add_argument("-g", "--group", help="group name")
     ls_parser.set_defaults(func=ls)
 
     log_parser = subparsers.add_parser("log", help="List all versions of a table")
-    log_parser.add_argument("-n", "--name", required=True, help="table name")
+    log_parser.add_argument("-n", "--name", help="table name")
+    log_parser.add_argument("-g", "--group", help="group name")
     log_parser.add_argument("--oneline", action="store_true", help="print oneline log")
     log_parser.set_defaults(func=log)
 
@@ -47,13 +54,28 @@ def setup_argparsers():
     dump_parser.add_argument("-t", "--table", help="table name for the dumpped table")
     dump_parser.set_defaults(func=dump)
 
+    snapshot_parser = subparsers.add_parser("snapshot", help="Create a snapshot for the current database")
+    snapshot_parser.add_argument("-m", "--message", required=True, help="message for the created version")
+    snapshot_parser.set_defaults(func=snapshot)
+
+    group_parser = subparsers.add_parser("group", help="Group multiple version tables together")
+    group_parser.add_argument("-n", "--name", nargs="+", required=True, help="version table names")
+    group_parser.add_argument("-g", "--group", help="group name")
+    group_parser.set_defaults(func=group)
+
+    ungroup_parser = subparsers.add_parser("ungroup", help="Ungroup version tables")
+    ungroup_parser.add_argument("-g", "--group", help="group name")
+    ungroup_parser.set_defaults(func=ungroup)
+
     checkout_parser = subparsers.add_parser("checkout", help="Switch to a version")
-    checkout_parser.add_argument("-n", "--name", required=True, help="table name")
+    checkout_parser.add_argument("-n", "--name", help="table name")
+    checkout_parser.add_argument("-g", "--group", help="group name")
     checkout_parser.add_argument("-v", "--version", required=True, help="version number or `head`")
     checkout_parser.set_defaults(func=checkout)
 
     commit_parser = subparsers.add_parser("commit", help="Create a new version")
-    commit_parser.add_argument("-n", "--name", required=True, help="table name")
+    commit_parser.add_argument("-n", "--name", help="table name")
+    commit_parser.add_argument("-g", "--group", help="group name")
     commit_parser.add_argument("-m", "--message", help="commit message")
     commit_parser.set_defaults(func=commit)
 
@@ -96,24 +118,14 @@ def default_handler():
     print("Use -h or --help for more information.")
 
 
-def _connect_table():
-    from orpheusplus.mysql_manager import MySQLManager
-    from orpheusplus.user_manager import UserManager
-    from orpheusplus.version_data import VersionData
-
-    user = UserManager()
-    mydb = MySQLManager(**user.info)
-    table = VersionData(cnx=mydb)
-    return table
-
-
 def dbconfig(args):
-    import maskpass
-    import yaml
     import shutil
 
+    import maskpass
+    import yaml
+
     from orpheusplus import DEFAULT_DIR, ORPHEUSPLUS_CONFIG
-    from orpheusplus.exceptions import MySQLConnectionError
+    from orpheusplus.exceptions import MySQLError
     from orpheusplus.mysql_manager import MySQLManager
     from orpheusplus.user_manager import UserManager
 
@@ -167,7 +179,7 @@ def dbconfig(args):
         mydb = MySQLManager(**user.info)
         print("Connection succeeded.")
         print(f"User: {db_user}, Database: {db_name}")
-    except MySQLConnectionError as e:
+    except MySQLError as e:
         msg = (
             f"Connection failed. Please check your input.\n"
             f"Reason: {e.message}"
@@ -185,8 +197,23 @@ def dbconfig(args):
     
 
 def ls(args):
+    from tabulate import tabulate
+
     from orpheusplus import VERSIONGRAPH_DIR
     from orpheusplus.user_manager import UserManager
+
+    def get_table_info(table_name):
+        table = connect_table()
+        table.load_table(table_name)
+        head = table.version_graph.head
+        try:
+            parsed_commits = table.parse_log()
+            commit_info = parsed_commits[-head]
+            assert commit_info["version"] == str(head)
+            return (table_name, commit_info["version"],
+                    commit_info["date"], commit_info["message"])
+        except FileNotFoundError:
+            return (table_name, "-", "-", "-")
 
     user = UserManager()
     db_name = user.info["database"]
@@ -195,31 +222,44 @@ def ls(args):
     if len(tables) == 0:
         print("No version table found.")
     else:
+        table_info = []
         print(f"Find {len(tables)} version tables.")
-        for table in tables:
-            print(table.stem)
+        for table_path in tables:
+            table_info.append(get_table_info(table_path.stem))
+        table_header = ["Table", "Current Version", "Created Time", "Message"]
+        print(tabulate(table_info, headers=table_header, tablefmt="simple"))
 
 
 def log(args):
     yellow = "\033[93m"
     cyan = "\033[96m"
     off = "\033[00m"
+    
+    if args["group"] is not None:
+        from orpheusplus.group_tracker import GroupTracker
 
-    table = _connect_table()
-    table.load_table(args["name"])
-    parsed_commits = table.parse_log()
+        group = GroupTracker()
+        group.load_group(args["group"])
+        parsed_commits = group.parse_log()
+        entity = group
+
+    else:
+        table = connect_table()
+        table.load_table(args["name"])
+        parsed_commits = table.parse_log()
+        entity = table
 
     msg = "" 
     if args["oneline"]:
         for commit in parsed_commits:
             msg += f"{yellow}{commit['version']:<4}{off}"
-            if commit["version"] == str(table.version_graph.head):
+            if commit["version"] == str(entity.get_current_version()):
                 msg += f"{yellow}({cyan}HEAD{yellow}){off} "
             msg += commit["message"] + "\n"
     else:
         for commit in parsed_commits:
             msg += f"{yellow}commit {commit['version']:<4}{off}"
-            if commit["version"] == str(table.version_graph.head):
+            if commit["version"] == str(entity.get_current_version()):
                 msg += f"{yellow}({cyan}HEAD{yellow}){off} "
             msg += f"\nAuthor: {commit['author']}"
             msg += f"\nDate: {commit['date']}"
@@ -228,7 +268,7 @@ def log(args):
 
 
 def init_table(args):
-    table = _connect_table()
+    table = connect_table()
     if args["table"] is None:
         table.init_table(args["name"], args["structure"])
         print(f"Table `{args['name']}` initialized successfully.")
@@ -254,34 +294,77 @@ def init_table(args):
 
 
 def checkout(args):
-    table = _connect_table()
-    table.load_table(args["name"])
-    if args["version"] == "head":
-        version = table.get_current_version()
-    else:
-        try:
-            version = int(args["version"])
-        except ValueError:
-            print("Invalid version number.")
-            sys.exit()
-    table.checkout(version)
-    print(f"Checkout to version {version}.")
+    def handle_version_arg(version, entity):
+        if version == "head":
+            version = entity.get_current_version()
+        else:
+            try:
+                version = int(args["version"])
+            except ValueError:
+                print("Invalid version number.")
+                sys.exit()
+        return version
+
+    if args["name"] is not None and args["group"] is not None:
+        print("Please specify only one of `-n` and `-g`.")
+        sys.exit()
+
+    if args["name"]:
+        table = connect_table()
+        table.load_table(args["name"])
+        version = handle_version_arg(args["version"], table)
+        table.checkout(version)
+        print(f"Checkout to version {version}.")
+    elif args["group"]:
+        from orpheusplus.group_tracker import GroupTracker
+
+        group = GroupTracker()
+        group.load_group(args["group"])
+        version - handle_version_arg(args["version"], group)
+        group.checkout(version)
+        print(f"Checkout to group version {version}.")
+
+
+def group(args):
+    from orpheusplus.group_tracker import GroupTracker
+
+    if len(args["name"]) == 1:
+        print("Please specify more than one table name.")
+
+    GroupTracker().init_group(group_name=args["group"], table_names=args["name"])   
+    print(f"Group `{args['group']}` initialized successfully.")
+
+
+def ungroup(args):
+    from orpheusplus.group_tracker import GroupTracker
+
+    GroupTracker().remove_group(group_name=args["group"])
+    print(f"Group `{args['group']}` removed successfully.")
 
 
 def commit(args):
     from datetime import datetime
 
+    if args["name"] is not None and args["group"] is not None:
+        print("Please specify only one of `-n` and `-g`.")
+        sys.exit()
+    
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    table = _connect_table()
-    table.load_table(args["name"])
-    table.commit(msg=args["message"], now=now)
-    head = table.version_graph.head
-    print(f"Create version {head}.")
+    if args["name"]:
+        table = connect_table()
+        table.load_table(args["name"])
+        table.commit(msg=args["message"], now=now)
+    elif args["group"]:
+        from orpheusplus.group_tracker import GroupTracker
+        group = GroupTracker()
+        group.load_group(args["group"])
+        group.commit(msg=args["message"], now=now)
+        head = group.get_current_version()
 
 
 def merge(args):
-    table = _connect_table()
+    table = connect_table()
     table.load_table(args["name"])
     head = table.version_graph.head
     if not table.operation.is_empty():
@@ -293,7 +376,7 @@ def merge(args):
 
 
 def manipulate(args):
-    table = _connect_table()
+    table = connect_table()
     table.load_table(args["name"])
     table.from_file(args["op"], args["data"])
     print(f"{str(args['op']).title()} from file {args['data']}")
@@ -309,7 +392,7 @@ def drop(args):
 
     if ans == "y":
         (LOG_DIR / args["name"]).unlink(missing_ok=True)
-        table = _connect_table()
+        table = connect_table()
         table.load_table(args["name"])
         ans_save = "y" if args["yes"] else None
         while ans_save not in ["y", "n"]:
@@ -327,10 +410,42 @@ def drop(args):
 
 def dump(args):
     new_table_name = args["table"] if args["table"] is not None else args["name"]
-    table = _connect_table()
+    table = connect_table()
     table.load_table(args["name"])
     table.dump(new_table_name)
     print(f"Dump the version table `{args['name']}` to `{args['table']}` in MySQL.")
+
+
+def snapshot(args):
+    import re
+
+    from orpheusplus.mysql_manager import MySQLManager
+    from orpheusplus.user_manager import UserManager
+
+    TABLE_PATTERN = re.compile(r"_orpheusplus") 
+
+    def classify_tables(tables):
+        table_dict = {"normal": [], "version": []}
+        for table in tables:
+            if TABLE_PATTERN.search(table):
+                if table.endswith("_orpheusplus"):
+                    table_dict["version"].append(table.replace("_orpheusplus", ""))
+            else:
+                table_dict["normal"].append(table)
+        return table_dict
+                
+
+    user = UserManager()
+    cnx = MySQLManager(**user.info)
+    result = cnx.execute("SHOW TABLES")
+    tables = classify_tables([row[0] for row in result])
+    dbname = user.info["database"]
+
+    len_normal = len(tables["normal"])
+    len_version = len(tables["version"])
+    print(f"Find {len_normal + len_version} tables in {dbname}")
+    print(f"Non-version-controlled ({len_normal} tables):\n" + "\n".join(tables["normal"]) + "\n")
+    print(f"Version-controlled ({len_version} tables):\n" + "\n".join(tables["version"]) + "\n")
 
 
 def run(args):
@@ -368,7 +483,7 @@ def run(args):
         else:
             print(tabulate(data, headers=field, tablefmt="fancy_grid")) 
 
-    table = _connect_table()
+    table = connect_table()
     mydb = table.cnx
     parser = SQLParser()
     if args["file"] is not None:

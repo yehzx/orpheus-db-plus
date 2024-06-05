@@ -60,18 +60,24 @@ def test_c_insert_update(func, data_path, table, expected_data):
     assert data == expected, f"result: {data}\nexpected: {expected}"
 
 
-def test_c_commit_raise_error_1(table):
+def test_c_commit_no_revision_1(table, capfd):
     now = datetime.now()
-    with pytest.raises(SystemExit):
-        table.commit(msg="version_1", now=now)
+    table.commit(msg="version_1", now=now)
+    out, err = capfd.readouterr()
+    out = out.strip()
+    expected = "No revision to the last version. Abort commit."
+    assert out == expected, f"result: {out}\nexpected: {expected}"
 
 
-def test_c_commit_raise_error_2(table, data_path):
+def test_c_commit_no_revision_2(table, data_path, capfd):
     now = datetime.now()
-    with pytest.raises(SystemExit):
-        table.from_file("insert", data_path["1"])
-        table.from_file("delete", data_path["1"])
-        table.commit(msg="version_1", now=now)
+    table.from_file("insert", data_path["1"])
+    table.from_file("delete", data_path["1"])
+    table.commit(msg="version_1", now=now)
+    out, err = capfd.readouterr()
+    out = out.strip()
+    expected = "No revision to the last version. Abort commit."
+    assert out == expected, f"result: {out}\nexpected: {expected}"
 
 
 def test_c_commit(func, table_with_data, expected_data):

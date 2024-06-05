@@ -1,4 +1,4 @@
-class MySQLConnectionError(Exception):
-    def __init__(self, message):
-        message = f"{type(message)} - {message}"
-        self.message = message
+class MySQLError(Exception):
+    def __init__(self, error_code, msg):
+        self.error_code = error_code
+        self.msg = msg

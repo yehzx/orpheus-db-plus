@@ -2,6 +2,7 @@
 config.yaml
 examples/*student*
 scripts/example_dbms_class.py
+tests/try*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,5 +1,6 @@
 import subprocess
 import time
+import pydoc
 
 
 YELLOW = "\033[93m"
@@ -24,3 +25,7 @@ def command(stmt, sleep=0):
     for output in execute(stmt):
         print(f"{output}", end="")
     time.sleep(sleep)
+
+
+def page_print(text):
+    pydoc.pager(text)

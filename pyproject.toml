@@ -27,7 +27,8 @@ dependencies = [
     "networkx[default]",
     "sqlparse",
     "tabulate",
-    "wcwidth"
+    "wcwidth",
+    "keyring"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
