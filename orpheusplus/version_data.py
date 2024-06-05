@@ -127,6 +127,23 @@ class VersionData():
         self.cnx.executemany(stmt, rids)
         self.cnx.commit()
 
+    def diff(self, version_1, version_2):
+        rids_1 = self.version_graph.version_table.get_version_rids(version_1)
+        rids_2 = self.version_graph.version_table.get_version_rids(version_2)
+        rids_1 = set(rids_1)
+        rids_2 = set(rids_2)
+        v1_diff_v2 = self.select_by_rid(list(rids_1 - rids_2))
+        v2_diff_v1 = self.select_by_rid(list(rids_2 - rids_1))
+        fields = [col[0] for col in self.cnx.cursor.description]
+        # Remove `rid`
+        fields = fields[1:]
+
+        return {
+            "fields": fields,
+            "v1_diff_v2": v1_diff_v2,
+            "v2_diff_v1": v2_diff_v1
+        }
+
     def merge(self, version, resolved_file=None):
         if not self.operation.is_empty():
             print(
@@ -206,9 +223,7 @@ class VersionData():
         with open(conflict_path, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(write_cols)
-            for (head_rid,
-                 head_timestamp), (version_rid,
-                                   version_timestamp) in conflicts.values():
+            for (head_rid, head_timestamp), (version_rid, version_timestamp) in conflicts.values():
                 if head_rid is None:
                     head_data = [""] * len(cols)
                 else:
@@ -217,11 +232,9 @@ class VersionData():
                     version_data = [""] * len(cols)
                 else:
                     version_data = list(self.select_by_rid(version_rid)[0])
-                select = (1, 0) if head_timestamp > version_timestamp else (0,
-                                                                            1)
+                select = (1, 0) if head_timestamp > version_timestamp else (0, 1)
                 writer.writerow([select[0]] + head_data + [head_timestamp] +
-                                [select[1]] + version_data +
-                                [version_timestamp])
+                                [select[1]] + version_data + [version_timestamp])
         print(f"Find conflicts in {len(conflicts)} rows.")
         print(
             f"Save conflicts to {conflict_path}. Please resolve it by marking the rows as `1`."
@@ -334,8 +347,14 @@ class VersionData():
         return delete_rids
 
     def select_by_rid(self, rid):
-        stmt = (f"SELECT * FROM {self.table_name}{self.data_table_suffix} "
-                f"WHERE rid = {rid}")
+        if not rid:
+            return []
+        if isinstance(rid, int):
+            stmt = (f"SELECT * FROM {self.table_name}{self.data_table_suffix} "
+                    f"WHERE rid = {rid}")
+        elif isinstance(rid, list):
+            stmt = (f"SELECT * FROM {self.table_name}{self.data_table_suffix} "
+                    f"WHERE rid IN {tuple(rid)}")
         result = self.cnx.execute(stmt)
         return [each[1:] for each in result]
 

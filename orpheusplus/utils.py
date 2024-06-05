@@ -10,14 +10,20 @@ def parse_commit(commit):
     author = re.search(r"^Author: (.*)", lines[1]).group(1)
     date = re.search(r"^Date: (.*)", lines[2]).group(1)
     message = re.search(r"^Message: (.*)", lines[3]).group(1)
-    return {"version": version, "author": author, "date": date,
-            "message": message}
+    return {
+        "version": version,
+        "author": author,
+        "date": date,
+        "message": message
+    }
+
 
 def parse_table_types(schema):
     type_dict = OrderedDict()
     for col in schema:
         type_dict[col[0]] = col[1].decode()
     return type_dict
+
 
 def parse_csv_structure(filepath) -> list:
     cols = []
@@ -28,14 +34,15 @@ def parse_csv_structure(filepath) -> list:
                 print("Invalid data schema, should be COLUMN_NAME,DATA_TYPE")
                 sys.exit()
             cols.append(row)
-    return  cols
+    return cols
+
 
 def parse_csv_data(filepath):
     data = []
     with open(filepath, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         data = list(reader)
-    return data    
+    return data
 
 
 def match_column_order(table_cols, cols):
