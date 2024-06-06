@@ -185,9 +185,7 @@ def dbconfig(args):
         print("Connection succeeded.")
         print(f"User: {db_user}, Database: {db_name}")
     except MySQLError as e:
-        msg = (f"Connection failed. Please check your input.\n"
-               f"Reason: {e.message}")
-        print(msg)
+        print(e.msg)
 
     # Save config
     with open(DEFAULT_DIR / "config.yaml", "w", encoding="utf-8") as f:
@@ -313,6 +311,8 @@ def init_table(args):
 
 
 def checkout(args):
+    from orpheusplus.exceptions import NonEmptyOperation
+
     if args["name"] is not None and args["group"] is not None:
         print("Please specify only one of `-n` and `-g`.")
         sys.exit()
@@ -321,16 +321,22 @@ def checkout(args):
         table = connect_table()
         table.load_table(args["name"])
         version = _handle_version_arg(args["version"], table)
-        table.checkout(version)
-        print(f"Checkout to version {version}.")
+        try:
+            table.checkout(version)
+            print(f"Checkout to version {version}.")
+        except NonEmptyOperation:
+            pass
     elif args["group"]:
         from orpheusplus.group_tracker import GroupTracker
 
         group = GroupTracker()
         group.load_group(args["group"])
         version - _handle_version_arg(args["version"], group)
-        group.checkout(version)
-        print(f"Checkout to group version {version}.")
+        try:
+            group.checkout(version)
+            print(f"Checkout to group version {version}.")
+        except NonEmptyOperation:
+            pass
 
 
 def _handle_version_arg(version, entity):
