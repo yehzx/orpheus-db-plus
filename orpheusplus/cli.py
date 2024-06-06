@@ -220,16 +220,25 @@ def ls(args):
     user = UserManager()
     db_name = user.info["database"]
     # The files in VERSIONGRAPH_DIR are all version tables.
-    tables = list((VERSIONGRAPH_DIR / db_name).glob("*"))
-    if len(tables) == 0:
-        print("No version table found.")
+    if args["group"] is None:
+        tables = list((VERSIONGRAPH_DIR / db_name).glob("*"))
+        if len(tables) == 0:
+            print("No version table found.")
+        else:
+            table_info = []
+            print(f"Find {len(tables)} version tables.")
+            for table_path in tables:
+                table_info.append(get_table_info(table_path.stem))
     else:
-        table_info = []
-        print(f"Find {len(tables)} version tables.")
-        for table_path in tables:
-            table_info.append(get_table_info(table_path.stem))
-        table_header = ["Table", "Current Version", "Created Time", "Message"]
-        print(tabulate(table_info, headers=table_header, tablefmt="simple"))
+        from orpheusplus.group_tracker import GroupTracker
+
+        group = GroupTracker()
+        group.load_group(args["group"])
+        table_info = [get_table_info(table) for table in group.table_names]
+        print(f"Find {len(table_info)} version tables in `{args['group']}`.")
+
+    table_header = ["Table", "Current Version", "Created Time", "Message"]
+    print(tabulate(table_info, headers=table_header, tablefmt="simple"))
 
 
 def log(args):
@@ -331,7 +340,7 @@ def checkout(args):
 
         group = GroupTracker()
         group.load_group(args["group"])
-        version - _handle_version_arg(args["version"], group)
+        version = _handle_version_arg(args["version"], group)
         try:
             group.checkout(version)
             print(f"Checkout to group version {version}.")

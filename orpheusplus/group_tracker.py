@@ -123,9 +123,13 @@ class GroupTracker():
         
     def checkout(self, version):
         self.group_head = version
+        self._load_table()
         for table in self.tables:
             print(f"Checking out {table.table_name}:")
-            table.checkout(self.group_versions[self.group_head][table.table_name])
+            # idx starts from 0
+            info = self.group_versions[self.group_head - 1]
+            assert info[0] == self.group_head, "Version number unmatched"
+            table.checkout(info[1]["tables"][table.table_name])
     
     def get_current_version(self):
         return self.group_head
