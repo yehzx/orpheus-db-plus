@@ -1,14 +1,16 @@
 import csv
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import pytest
-from datetime import datetime
+
 from orpheusplus.cli import run
 from orpheusplus.mysql_manager import MySQLManager
 from orpheusplus.user_manager import UserManager
-from orpheusplus.version_data import (DATA_TABLE_SUFFIX, HEAD_SUFFIX,
-                                      VersionData)
+from orpheusplus.version_data import DATA_TABLE_SUFFIX
+from orpheusplus.version_data import HEAD_SUFFIX as head_suffix
+from orpheusplus.version_data import VersionData
 from orpheusplus.version_table import VERSION_TABLE_SUFFIX
 
 TEST_TABLE_NAME = "_test_table"
@@ -33,6 +35,8 @@ def cnx():
     try:
         user = UserManager()
         mydb = MySQLManager(**user.info)
+        global HEAD_SUFFIX
+        HEAD_SUFFIX = head_suffix + "_" + user.info["user"]
         yield mydb
     except:
         yield None

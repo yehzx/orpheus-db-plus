@@ -60,7 +60,7 @@ def setup_argparsers():
     dump_parser.add_argument("-t", "--table", help="table name for the dumpped table")
     dump_parser.set_defaults(func=dump)
 
-    snapshot_parser = subparsers.add_parser("snapshot", help="Create a snapshot for the current database")
+    snapshot_parser = subparsers.add_parser("snapshot", help="Create a snapshot for the current database (Not yet implemented)")
     snapshot_parser.add_argument("-m", "--message", required=True, help="message for the created version")
     snapshot_parser.set_defaults(func=snapshot)
 
