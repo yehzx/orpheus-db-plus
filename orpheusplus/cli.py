@@ -44,7 +44,7 @@ def setup_argparsers():
     log_parser.set_defaults(func=log)
 
     diff_parser = subparsers.add_parser("diff", help="Show the difference between two versions")
-    diff_parser.add_argument("-n", "--name", help="table name")
+    diff_parser.add_argument("-n", "--name", required=True, help="table name")
     diff_parser.add_argument("-v",  "--version", nargs=2, help="version numbers or `head`")
     diff_parser.set_defaults(func=diff)
 
@@ -60,17 +60,17 @@ def setup_argparsers():
     dump_parser.add_argument("-t", "--table", help="table name for the dumpped table")
     dump_parser.set_defaults(func=dump)
 
-    snapshot_parser = subparsers.add_parser("snapshot", help="Create a snapshot for the current database")
-    snapshot_parser.add_argument("-m", "--message", required=True, help="message for the created version")
-    snapshot_parser.set_defaults(func=snapshot)
+    # snapshot_parser = subparsers.add_parser("snapshot", help="Create a snapshot for the current database")
+    # snapshot_parser.add_argument("-m", "--message", required=True, help="message for the created version")
+    # snapshot_parser.set_defaults(func=snapshot)
 
     group_parser = subparsers.add_parser("group", help="Group multiple version tables together")
     group_parser.add_argument("-n", "--name", nargs="+", required=True, help="version table names")
-    group_parser.add_argument("-g", "--group", help="group name")
+    group_parser.add_argument("-g", "--group", required=True, help="group name")
     group_parser.set_defaults(func=group)
 
     ungroup_parser = subparsers.add_parser("ungroup", help="Ungroup version tables")
-    ungroup_parser.add_argument("-g", "--group", help="group name")
+    ungroup_parser.add_argument("-g", "--group", required=True, help="group name")
     ungroup_parser.set_defaults(func=ungroup)
 
     checkout_parser = subparsers.add_parser("checkout", help="Switch to a version")
