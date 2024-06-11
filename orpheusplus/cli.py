@@ -185,9 +185,7 @@ def dbconfig(args):
         print("Connection succeeded.")
         print(f"User: {db_user}, Database: {db_name}")
     except MySQLError as e:
-        msg = (f"Connection failed. Please check your input.\n"
-               f"Reason: {e.message}")
-        print(msg)
+        print(e.msg)
 
     # Save config
     with open(DEFAULT_DIR / "config.yaml", "w", encoding="utf-8") as f:
@@ -222,16 +220,25 @@ def ls(args):
     user = UserManager()
     db_name = user.info["database"]
     # The files in VERSIONGRAPH_DIR are all version tables.
-    tables = list((VERSIONGRAPH_DIR / db_name).glob("*"))
-    if len(tables) == 0:
-        print("No version table found.")
+    if args["group"] is None:
+        tables = list((VERSIONGRAPH_DIR / db_name).glob("*"))
+        if len(tables) == 0:
+            print("No version table found.")
+        else:
+            table_info = []
+            print(f"Find {len(tables)} version tables.")
+            for table_path in tables:
+                table_info.append(get_table_info(table_path.stem))
     else:
-        table_info = []
-        print(f"Find {len(tables)} version tables.")
-        for table_path in tables:
-            table_info.append(get_table_info(table_path.stem))
-        table_header = ["Table", "Current Version", "Created Time", "Message"]
-        print(tabulate(table_info, headers=table_header, tablefmt="simple"))
+        from orpheusplus.group_tracker import GroupTracker
+
+        group = GroupTracker()
+        group.load_group(args["group"])
+        table_info = [get_table_info(table) for table in group.table_names]
+        print(f"Find {len(table_info)} version tables in `{args['group']}`.")
+
+    table_header = ["Table", "Current Version", "Created Time", "Message"]
+    print(tabulate(table_info, headers=table_header, tablefmt="simple"))
 
 
 def log(args):
@@ -313,6 +320,8 @@ def init_table(args):
 
 
 def checkout(args):
+    from orpheusplus.exceptions import NonEmptyOperation
+
     if args["name"] is not None and args["group"] is not None:
         print("Please specify only one of `-n` and `-g`.")
         sys.exit()
@@ -321,16 +330,22 @@ def checkout(args):
         table = connect_table()
         table.load_table(args["name"])
         version = _handle_version_arg(args["version"], table)
-        table.checkout(version)
-        print(f"Checkout to version {version}.")
+        try:
+            table.checkout(version)
+            print(f"Checkout to version {version}.")
+        except NonEmptyOperation:
+            pass
     elif args["group"]:
         from orpheusplus.group_tracker import GroupTracker
 
         group = GroupTracker()
         group.load_group(args["group"])
-        version - _handle_version_arg(args["version"], group)
-        group.checkout(version)
-        print(f"Checkout to group version {version}.")
+        version = _handle_version_arg(args["version"], group)
+        try:
+            group.checkout(version)
+            print(f"Checkout to group version {version}.")
+        except NonEmptyOperation:
+            pass
 
 
 def _handle_version_arg(version, entity):

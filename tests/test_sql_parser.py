@@ -1,9 +1,11 @@
 import pytest
 import sqlparse
 from orpheusplus.query_parser import SQLParser
-from orpheusplus.version_data import HEAD_SUFFIX, DATA_TABLE_SUFFIX
+from orpheusplus.version_data import HEAD_SUFFIX as head_suffix, DATA_TABLE_SUFFIX
 from orpheusplus.version_table import VERSION_TABLE_SUFFIX
+from orpheusplus.user_manager import UserManager
 
+HEAD_SUFFIX = head_suffix + "_" + UserManager().info["user"]
 
 def test_strip_whitespace():
     stmt = sqlparse.parse("SELECT   * FROM foo")

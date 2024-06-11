@@ -65,11 +65,10 @@ class VersionGraph():
             pickle.dump(self.G, f)    
 
     def _save_graph_attr(self):
-        self.G.graph["head"] = self.head
         self.G.graph["version_count"] = self.version_count        
 
     def _load_graph_attr(self):
-        self.head = self.G.graph["head"]
+        self.head = Operation.get_user_head(self.db_name, self.table_name, self.cnx.cnx_args["user"])
         self.version_count = self.G.graph["version_count"]    
 
     def _load_version_table(self):
@@ -130,13 +129,13 @@ class VersionGraph():
             
     def _gather_changes_from_path(self, path):
         changes = []
-        node = path.pop(0)
+        ancestor = path.pop(0)
         while path:
-            child_node = path[0]
+            successor = path[0]
             op = Operation()
-            op.load_operation(self.db_name, self.table_name, node)
-            changes.extend(op.get_commit_change(child_node))
-            node = path.pop(0)
+            op.load_operation(self.db_name, self.table_name, ancestor)
+            changes.extend(op.get_commit_change(successor))
+            ancestor = path.pop(0)
         return changes
 
     def _find_path_to_common_ancestor(self, version_1, version_2):

@@ -3,13 +3,16 @@ from sqlparse import keywords
 from sqlparse.lexer import Lexer
 from sqlparse.sql import Identifier, IdentifierList, Token, Where
 
-from orpheusplus.version_data import DATA_TABLE_SUFFIX, HEAD_SUFFIX
+from orpheusplus.user_manager import UserManager
+from orpheusplus.version_data import DATA_TABLE_SUFFIX
+from orpheusplus.version_data import HEAD_SUFFIX as head_suffix
 from orpheusplus.version_table import VERSION_TABLE_SUFFIX
 
 lex = Lexer.get_default_instance()
 lex.add_keywords({"VTABLE": sqlparse.tokens.Keyword,
                   "VERSION": sqlparse.tokens.Keyword})
 
+HEAD_SUFFIX = head_suffix + "_" + UserManager().info["user"]
 
 class SQLParser():
     def __init__(self):

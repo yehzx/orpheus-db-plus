@@ -10,6 +10,7 @@ from orpheusplus.utils import (match_column_order, parse_commit,
                                parse_csv_data, parse_csv_structure,
                                parse_table_types, reorder_data)
 from orpheusplus.version_graph import VersionGraph
+from orpheusplus.exceptions import NonEmptyOperation
 
 DATA_TABLE_SUFFIX = "_orpheusplus"
 HEAD_SUFFIX = "_orpheusplus_head"
@@ -18,15 +19,16 @@ HEAD_SUFFIX = "_orpheusplus_head"
 class VersionData():
     data_table_suffix = DATA_TABLE_SUFFIX
     # The table used to store the current version of the table
-    head_suffix = HEAD_SUFFIX
 
     def __init__(self, cnx: MySQLManager):
         self.cnx = cnx
         self.table_name = None
+        self.user = cnx.cnx_args["user"]
         self.db_name = cnx.cnx_args["database"]
         self.table_structure = None
         self.version_graph = None
         self.operation = None
+        VersionData.head_suffix = HEAD_SUFFIX + "_" + self.user
 
     def init_table(self, table_name, table_structure_path):
         self.table_name = table_name
@@ -50,17 +52,21 @@ class VersionData():
 
         # The graph for tracking version dependency
         self._create_version_graph()
-        self._create_operation()
+        self._init_user_operation()
         self.table_structure = self._get_table_types()
 
     def _create_version_graph(self):
         self.version_graph = VersionGraph(self.cnx)
         self.version_graph.init_version_graph(self.db_name, self.table_name)
 
-    def _create_operation(self):
+    def _init_user_operation(self):
         self.operation = Operation()
-        self.operation.init_operation(self.db_name, self.table_name,
-                                      self.get_current_version())
+        try:
+            self.operation.load_operation(self.db_name, self.table_name,
+                                          self.user)
+        except FileNotFoundError:
+            self.operation.init_operation(self.db_name, self.table_name, 
+                self.version_graph.version_count, self.user)
 
     def from_table(self, from_table, to_table):
         table_structure = self._get_table_types(from_table)
@@ -83,15 +89,29 @@ class VersionData():
         self.version_graph.load_version_graph(self.db_name, table_name)
         self.operation = Operation()
         try:
-            self.operation.load_operation(self.db_name, table_name,
-                                          self.get_current_version())
+            self.operation.load_operation(self.db_name, self.table_name,
+                                          self.user)
+        except FileNotFoundError:
+            self.operation.init_operation(self.db_name, self.table_name, 
+                                          self.version_graph.version_count, self.user)
+            # Initialize the table for the current version
+            stmt = f"CREATE TABLE {table_name}{self.head_suffix} LIKE {table_name}{self.data_table_suffix}"
+            self.cnx.execute(stmt)
+            rids = self.version_graph.version_table.get_version_rids(self.version_graph.version_count)
+            stmt = (f"INSERT INTO {self.table_name}{self.head_suffix} "
+                f"SELECT * FROM {self.table_name}{self.data_table_suffix} "
+                f"WHERE rid = %s")
+            rids = [(rid, ) for rid in rids]
+            self.cnx.executemany(stmt, rids)
+            self.cnx.commit()
+            self.version_graph.head = self.version_graph.version_count
         except:
             print("Corrupted version table.")
             ans = input(
                 "Revert back to a normal table or drop it? (y/n/drop)\n")
             if ans == "y":
                 self.operation.init_operation(self.db_name, table_name,
-                                              self.get_current_version())
+                                              self.get_current_version(), self.user)
                 self.remove(keep_current=True)
                 print(
                     f"Turn version table `{self.table_name} into a normal table.`"
@@ -103,20 +123,20 @@ class VersionData():
                 print("Abort loading version table.")
             sys.exit()
 
+
     def checkout(self, version):
         if version == self.get_current_version():
             print("Discard all changes.")
             self.operation.clear()
         elif not self.operation.is_empty():
-            print("Please commit changes or discard them by `checkout head`")
-            return
-        try:
-            self.operation.load_operation(self.db_name, self.table_name,
-                                          version)
-        except Exception:
+            raise NonEmptyOperation(
+                "Please commit changes or discard them by `checkout head`")
+
+        if int(version) > self.version_graph.version_count:
             print(f"Version {version} doesn't exist.")
             sys.exit()
 
+        self.operation.switch_user_version_head(version)
         rids = self.version_graph.switch_version(version)
         rids = [(rid, ) for rid in rids]
         stmt = f"DELETE FROM {self.table_name}{self.head_suffix}"
@@ -151,12 +171,9 @@ class VersionData():
             )
             sys.exit()
 
-        changes_head, changes_version = self.version_graph.gather_changes(
-            version)
-        conflicts = self.version_graph.gather_conflicts(
-            changes_head, changes_version)
-        changed_rids = set(
-            list(changes_head.keys()) + list(changes_version.keys()))
+        changes_head, changes_version = self.version_graph.gather_changes(version)
+        conflicts = self.version_graph.gather_conflicts(changes_head, changes_version)
+        changed_rids = set(list(changes_head.keys()) + list(changes_version.keys()))
         keep_rids = set()
         delete_rids = set()
         if conflicts:
@@ -165,8 +182,7 @@ class VersionData():
                 sys.exit()
             else:
                 try:
-                    parsed = self._parse_keep_or_delete(
-                        resolved_file, conflicts, version)
+                    parsed = self._parse_keep_or_delete(resolved_file, conflicts, version)
                     keep_rids = set(parsed[0])
                     delete_rids = set(parsed[1])
                     print("Resolve conflicts.")
@@ -202,7 +218,10 @@ class VersionData():
         rids_to_add = total_rids - rids_in_version
         rids_to_delete = rids_in_version - total_rids
         operation = Operation()
-        operation.load_operation(self.db_name, self.table_name, version)
+        try:
+            operation.load_operation(self.db_name, self.table_name, version)
+        except FileNotFoundError:
+            operation.init_operation(self.db_name, self.table_name, version)
         operation.insert(rids_to_add)
         operation.delete(rids_to_delete)
         operation.parse()
@@ -210,15 +229,13 @@ class VersionData():
                                          from_version=version,
                                          to_version=next_version,
                                          **commit_info)
-        self._create_operation()
         self._save_log(**commit_info)
 
     def _write_conflict_file(self, version, conflicts):
         cols = list(self.table_structure.keys())
         cols.remove("rid")
-        write_cols = ["select_head"] + cols + ["timestamp"] + [
-            f"select_{version}"
-        ] + cols + ["timestamp"]
+        write_cols = ["select_head"] + cols + ["timestamp"] + \
+            [f"select_{version}"] + cols + ["timestamp"]
         conflict_path = f"./conflicts_{int(time.time())}.csv"
         with open(conflict_path, "w", newline="") as f:
             writer = csv.writer(f)
@@ -435,7 +452,6 @@ class VersionData():
             self.cnx.execute(stmt)
             self.cnx.commit()
         self.version_graph.add_version(self.operation, **commit_info)
-        self._create_operation()
         self._save_log(**commit_info)
 
         print(f"Create version {self.get_current_version()}")

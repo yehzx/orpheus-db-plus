@@ -1,10 +1,9 @@
 import pickle
-from collections import Counter, defaultdict
+import re
 from contextlib import contextmanager
 from datetime import datetime
 
 from orpheusplus import OPERATION_DIR
-
 
 class Operation():
     def __init__(self):
@@ -14,14 +13,32 @@ class Operation():
         self.history = []
         self.operation_path = None
     
-    def init_operation(self, db_name, table_name, version):
-        self.operation_path = OPERATION_DIR / f"{db_name}/{table_name}_{version}"
+    def init_operation(self, db_name, table_name, version, user=None):
+        if user is None:
+            self.operation_path = OPERATION_DIR / f"{db_name}/{table_name}/{version}"
+        else:
+            self.operation_path = OPERATION_DIR / f"{db_name}/{table_name}/{version}_{user}"
         self.operation_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.operation_path, "wb") as f:
             pickle.dump(self, f)
     
     def load_operation(self, db_name, table_name, version):
-        self.operation_path = OPERATION_DIR / f"{db_name}/{table_name}_{version}"
+        try:
+            version = int(version)
+        except:
+            pass
+        
+        if isinstance(version, int):
+            self.operation_path = OPERATION_DIR / f"{db_name}/{table_name}/{version}"
+        elif isinstance(version, str):
+            user = version
+            dirpath = OPERATION_DIR / f"{db_name}/{table_name}"
+            op_path = list(dirpath.glob(f"*_{user}"))
+            if not op_path:
+                raise FileNotFoundError()
+            assert len(op_path) <= 1, f"More than one head for a user"
+            self.operation_path = op_path[0]
+            
         with open(self.operation_path, "rb") as f:
             self.__dict__.update(pickle.load(f).__dict__)
     
@@ -31,6 +48,27 @@ class Operation():
                 pickle.dump(self, f)
         except:
             raise Exception(f"{self.operation_path} not properly initialized.")
+
+    @staticmethod 
+    def get_user_head(db_name, table_name, user):
+        op_path = list((OPERATION_DIR / db_name / table_name).glob(f"*_{user}"))
+        assert len(op_path) <= 1, f"More than one head for a user"
+        try:
+            head = int(op_path[0].name.split("_", 1)[0])
+        except:
+            head = None
+        return head
+
+    
+    def switch_user_version_head(self, version):
+        try:
+            user = self.operation_path.name.split("_", 1)[1]
+        except:
+            return
+        new_operation_path = self.operation_path.parent / f"{str(version)}_{user}"
+        self.operation_path.rename(new_operation_path)
+        self.operation_path = new_operation_path
+        self.save_operation()
     
     def commit(self, child, **commit_info):
         # If commit message has more than 72 characters, truncate it.
@@ -40,17 +78,27 @@ class Operation():
         self.add_rids = []
         self.remove_rids = []
         self.history.append(("commit", (child, msg), now))
+        
+        current_version = self.operation_path.name.split("_", 1)[0]
+        version_op_path = self.operation_path.parent / current_version
+        table_name = self.operation_path.parent.name
+        db_name = self.operation_path.parent.parent.name
+        op = Operation() 
+        if not version_op_path.is_file():
+            op.init_operation(db_name, table_name, current_version)
+        else:
+            op.load_operation(db_name, table_name, current_version)
+        op.history.extend(self.history)
+        op.save_operation()
+
+        self.clear(keep_history=False)
+        self.switch_user_version_head(child)
         self.save_operation()
     
     def remove(self):
-        # tablename_version
-        table = self.operation_path.stem.rsplit("_", 1)[0]
-        for operation_path in self.operation_path.parent.glob(f"{table}_[0-9]*"):
-            operation_path.unlink()
-        try:
-            operation_path.parent.rmdir()
-        except OSError:
-            pass
+        import shutil
+
+        shutil.rmtree(self.operation_path.parent)
     
     def insert(self, rids):
         now = datetime.now()
@@ -80,10 +128,12 @@ class Operation():
         self.stmts.append(("update", (delete_stmt, insert_stmt, mapping), delete_stmt[2]))
         self.save_operation()
 
-    def clear(self):
+    def clear(self, keep_history=True):
         self.stmts = []
         self.add_rids = []
         self.remove_rids = []
+        if not keep_history:
+            self.history = []
         self.save_operation()
     
     def get_commit_change(self, version):
@@ -143,6 +193,8 @@ class Operation():
             self._parse_stmt(insert)
 
     def _remove_overlapping_rids(self):
+        from collections import Counter
+
         # Didn't use set because same entries can be inserted and deleted and then inserted.
         add = Counter(self.add_rids)
         remove = Counter(self.remove_rids)
