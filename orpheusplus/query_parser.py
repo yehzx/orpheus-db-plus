@@ -178,21 +178,37 @@ class SQLParser():
         for idx in vtable_indices:
             # Case: > one vtable
             if type(tokens[idx + 1]) is IdentifierList:
-                vtable = []
-                table_names = tokens[idx + 1].value.split(",")
-                for table_name in table_names:
-                    table_name = table_name.strip().strip("`")
-                    vtable.append(f"{table_name}{HEAD_SUFFIX}")
+                identifiers = [name.lower().strip(" `") for name in tokens[idx + 1].value.split(",")]
+                vtable_name = identifiers.pop(0)
+                tables = [f"{vtable_name}{HEAD_SUFFIX}"]
+                vtables = [vtable_name]
+                token_idx = idx + 1
+                while identifiers:
+                    identifier = identifiers.pop(0)
+                    if identifier == "vtable":
+                        token_idx += 1
+                        tables.append(f"{tokens[token_idx]}{HEAD_SUFFIX}")
+                        vtables.append(tokens[token_idx])
+                    else:
+                        tables.append(identifier)
                 tokens[idx] = SQLParser._empty_identifier()
-                tokens[idx + 1] = SQLParser._build_identifier(", ".join(vtable))
+                tokens[idx + 1] = SQLParser._build_identifier(", ".join(tables))
             # Case: only one vtable
             elif type(tokens[idx + 1]) is Identifier:
-                table_name = tokens[idx + 1].value.strip("`")
-                vtable = SQLParser._build_identifier(f"{table_name}{HEAD_SUFFIX}")
+                tables = [tokens[idx + 1].value.strip("`")]
+                vtables = tables.copy()
+                vtable_token = SQLParser._build_identifier(f"{tables[0]}{HEAD_SUFFIX}")
                 tokens[idx] = SQLParser._empty_identifier()
-                tokens[idx + 1] = vtable
-
-        return tokens
+                tokens[idx + 1] = vtable_token
+        
+        flatten_tokens = tokens[:vtable_indices[0]]
+        for token in tokens[vtable_indices[0]:]:
+            flatten_tokens.extend(token.flatten())
+        
+        for token in flatten_tokens:
+            if token.value.lower().strip(" `") in vtables:
+                token.value = f"{token.value}{HEAD_SUFFIX}"
+        return flatten_tokens
     
     @staticmethod
     def _parse_for_versiondata(tokens):
@@ -296,16 +312,9 @@ class SQLParser():
 
     @staticmethod
     def _rebuild_stmt(tokens):
-        # Check if last is semicolon
-        flat_token_list = []
-        for token in tokens:
-            flat_tokens = list(token.flatten())
-            if flat_tokens[-1].match(sqlparse.tokens.Punctuation, ";"):
-                flat_tokens.pop()
-            flat_token_list.extend(flat_tokens)
-        flat_token_list = SQLParser._strip_unwanted_tokens(flat_token_list)
-        flat_token_list = list(filter(SQLParser._not_empty_identifier, flat_token_list))
-        stmt = " ".join([token.value for token in flat_token_list]) + ";"
+        token_list = SQLParser._strip_unwanted_tokens(tokens)
+        token_list = list(filter(SQLParser._not_empty_identifier, token_list))
+        stmt = " ".join([token.value for token in token_list])
         return stmt
 
     @staticmethod
