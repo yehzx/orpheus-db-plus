@@ -114,12 +114,15 @@ relational databases. We currently decide to use MySQL as the backend database.
     orpheusplus drop -n new_table --all
     ```
 
-For more advanced usages, please refer to the Jupyter notebooks in `notebooks`. (Will be added soon)
+For advanced usages, please try the example scripts in `scripts`.
+```
+python scripts/example_simple.py
+```
 
 
 **Available commands:**
 ```
-usage: orpheusplus [-h] {config,init,ls,log,drop,checkout,commit,merge,insert,delete,update,run} ...
+usage: orpheusplus [-h] {config,init,ls,log,diff,drop,dump,group,ungroup,checkout,commit,merge,insert,delete,update,run} ...
 
 options:
   -h, --help            show this help message and exit
@@ -127,12 +130,16 @@ options:
 commands:
   valid commands
 
-  {config,init,ls,log,drop,checkout,commit,merge,insert,delete,update,run}
+  {config,init,ls,log,diff,drop,dump,group,ungroup,checkout,commit,merge,insert,delete,update,run}
     config              Configure MySQL connection
     init                Initialize version control to a table
     ls                  List all tables under version control
     log                 List all versions of a table
+    diff                Show the difference between two versions
     drop                Drop a version table
+    dump                Dump a normal table of the current version table
+    group               Group multiple version tables together
+    ungroup             Ungroup version tables
     checkout            Switch to a version
     commit              Create a new version
     merge               Combine two versions
